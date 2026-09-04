@@ -24,10 +24,11 @@ function tryBetterSqlite3() {
 }
 
 async function initSqlJs() {
-  const initSqlJs = require("sql.js");
-  sqlJsSQL = await initSqlJs({
-    locateFile: (file) => require.resolve("sql.js/dist/" + file),
-  });
+  const initSqlJsFn = require("sql.js");
+  // .wasm is not in package "exports"; load beside the resolved JS entry.
+  const wasmPath = path.join(path.dirname(require.resolve("sql.js")), "sql-wasm.wasm");
+  const wasmBinary = fs.readFileSync(wasmPath);
+  sqlJsSQL = await initSqlJsFn({ wasmBinary });
   if (fs.existsSync(DB_PATH)) {
     const buf = fs.readFileSync(DB_PATH);
     sqlJsDb = new sqlJsSQL.Database(buf);
@@ -204,7 +205,7 @@ async function getDb() {
     adapter.exec(SCHEMA);
     console.log("[db] better-sqlite3 @", DB_PATH);
   } else {
-    console.log("[db] better-sqlite3 unavailable, falling back to sql.js");
+    console.log(preferSqlJs ? "[db] using sql.js (Vercel/ephemeral)" : "[db] better-sqlite3 unavailable, falling back to sql.js");
     await initSqlJs();
     adapter = createAdapter(false);
     adapter.exec(SCHEMA);
