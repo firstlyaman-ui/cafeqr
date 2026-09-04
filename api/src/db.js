@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
+const ON_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+const DATA_DIR = ON_VERCEL ? path.join("/tmp", "cafeqr-data") : path.join(__dirname, "..", "data");
 const DB_PATH = path.join(DATA_DIR, "cafeqr.db");
 
 let Database;
@@ -24,7 +25,9 @@ function tryBetterSqlite3() {
 
 async function initSqlJs() {
   const initSqlJs = require("sql.js");
-  sqlJsSQL = await initSqlJs();
+  sqlJsSQL = await initSqlJs({
+    locateFile: (file) => require.resolve("sql.js/dist/" + file),
+  });
   if (fs.existsSync(DB_PATH)) {
     const buf = fs.readFileSync(DB_PATH);
     sqlJsDb = new sqlJsSQL.Database(buf);
@@ -195,7 +198,8 @@ let adapter = null;
 async function getDb() {
   if (adapter) return adapter;
   ensureDir();
-  if (tryBetterSqlite3()) {
+  const preferSqlJs = ON_VERCEL || process.env.CAFEQR_USE_SQLJS === "1";
+  if (!preferSqlJs && tryBetterSqlite3()) {
     adapter = createAdapter(true);
     adapter.exec(SCHEMA);
     console.log("[db] better-sqlite3 @", DB_PATH);

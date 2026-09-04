@@ -122,7 +122,10 @@ function nid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-async function main() {
+let cachedApp = null;
+
+async function createApp() {
+  if (cachedApp) return cachedApp;
   const db = await getDb();
   await seed();
 
@@ -443,13 +446,23 @@ async function main() {
     res.json(mapOrder(row));
   });
 
+  cachedApp = app;
+  return app;
+}
+
+async function main() {
+  const app = await createApp();
   app.listen(PORT, () => {
     console.log(`CafeQR API listening on http://localhost:${PORT}`);
     console.log(`Health: GET /health · Cafes: GET /cafes · Demo: GET /cafes/velvet-bean`);
   });
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+module.exports = { createApp };

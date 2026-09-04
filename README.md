@@ -70,3 +70,31 @@ CafeQR/
   .gitignore
 ```
 
+
+## Deploy (Vercel)
+
+
+
+Two projects (recommended):
+
+
+
+1. **API** — root directory `api/`
+
+   - Serverless Express via `api/api/index.js` + `api/vercel.json`
+
+   - Uses `sql.js` on `/tmp` (ephemeral; re-seeded on cold start)
+
+2. **Web** — root directory `app/`
+
+   - Static Expo export (`dist`) + SPA rewrites in `app/vercel.json`
+
+   - Set `EXPO_PUBLIC_API_URL` to the API production URL, then redeploy
+
+
+
+Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
+
+
+
+**Caveat:** serverless SQLite under `/tmp` is not durable across instances/cold starts. Fine for demos; use a hosted DB for production.
