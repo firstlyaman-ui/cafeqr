@@ -47,6 +47,13 @@ describe("server-side pricing", () => {
   it("cafeTaxRate NPR 13%", () => {
     assert.equal(cafeTaxRate({ currency: "NPR", tax_rate: 0.13 }), 0.13);
   });
+
+  it("null surcharge columns use currency defaults (not 0)", () => {
+    const { cafeAltMilkPrice, cafeExtraShotPrice } = require("../src/pricing");
+    assert.equal(cafeAltMilkPrice({ currency: "NPR", alt_milk_price: null }), 25);
+    assert.equal(cafeExtraShotPrice({ currency: "NPR", extra_shot_price: null }), 40);
+    assert.equal(cafeAltMilkPrice({ currency: "USD", alt_milk_price: null }), 0.5);
+  });
 });
 
 describe("PIN hygiene", () => {

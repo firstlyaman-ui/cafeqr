@@ -8,13 +8,21 @@ function defaultSurcharges(currency) {
 }
 
 function cafeAltMilkPrice(cafe) {
-  const n = Number(cafe?.alt_milk_price);
+  const raw = cafe?.alt_milk_price;
+  if (raw === undefined || raw === null || raw === "") {
+    return defaultSurcharges(cafe?.currency).altMilk;
+  }
+  const n = Number(raw);
   if (Number.isFinite(n) && n >= 0) return n;
   return defaultSurcharges(cafe?.currency).altMilk;
 }
 
 function cafeExtraShotPrice(cafe) {
-  const n = Number(cafe?.extra_shot_price);
+  const raw = cafe?.extra_shot_price;
+  if (raw === undefined || raw === null || raw === "") {
+    return defaultSurcharges(cafe?.currency).extraShot;
+  }
+  const n = Number(raw);
   if (Number.isFinite(n) && n >= 0) return n;
   return defaultSurcharges(cafe?.currency).extraShot;
 }
