@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
@@ -65,11 +65,15 @@ export default function Owner() {
   const [flash, setFlash] = useState<{ kind: "ok" | "err" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const [catDrafts, setCatDrafts] = useState<Record<string, string>>({});
 
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashMsg = (kind: "ok" | "err" | "info", text: string) => {
     setFlash({ kind, text });
     if (kind === "ok") void hapticSuccess();
     if (kind === "err") void hapticError();
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), kind === "err" ? 6000 : 3200);
   };
 
   useEffect(() => {
@@ -91,6 +95,16 @@ export default function Owner() {
     setCash(cafe.cashOnly);
     setAccent(cafe.accentColor);
   }, [cafe]);
+
+  useEffect(() => {
+    setCatDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const c of categories) {
+        next[c.id] = prev[c.id] !== undefined && prev[c.id] !== c.name ? prev[c.id] : c.name;
+      }
+      return next;
+    });
+  }, [categories]);
 
   const sortedCats = useMemo(() => categories.slice().sort((a, b) => a.sort - b.sort), [categories]);
   const cur = cafe.currency || "USD";
@@ -323,35 +337,75 @@ export default function Owner() {
 
         <View style={styles.card}>
           <Text style={styles.section}>Categories</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Edit a name, then Save (or tab away). Deletes remove items in that category.</Text>
           {!sortedCats.length ? (
             <Text style={{ color: colors.muted }}>No categories yet — add one to start building the menu.</Text>
           ) : null}
-          {sortedCats.map((c) => (
-            <View key={c.id} style={styles.catRow}>
-              <Field
-                value={c.name}
-                onChangeText={(v) => void renameCategory(c.id, v)}
-                style={{ flex: 1 }}
-              />
-              <Pressable onPress={() => confirmDeleteCategory(c.id, c.name)} style={styles.kill} disabled={busy}>
-                <Text style={styles.killTxt}>Delete</Text>
-              </Pressable>
-            </View>
-          ))}
+          {sortedCats.map((c) => {
+            const draft = catDrafts[c.id] ?? c.name;
+            const dirty = draft.trim() !== c.name;
+            return (
+              <View key={c.id} style={styles.catRow}>
+                <Field
+                  value={draft}
+                  onChangeText={(v) => setCatDrafts((d) => ({ ...d, [c.id]: v }))}
+                  onBlur={() => {
+                    if (!dirty) return;
+                    void (async () => {
+                      const r = await renameCategory(c.id, draft, { immediate: true });
+                      if (r.ok) {
+                        setCatDrafts((d) => ({ ...d, [c.id]: draft.trim() || c.name }));
+                        flashMsg("ok", "Category renamed.");
+                      } else flashMsg("err", r.error);
+                    })();
+                  }}
+                  style={{ flex: 1 }}
+                />
+                {dirty ? (
+                  <Btn
+                    label="Save"
+                    disabled={busy}
+                    onPress={() => {
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          const r = await renameCategory(c.id, draft, { immediate: true });
+                          if (r.ok) {
+                            setCatDrafts((d) => ({ ...d, [c.id]: draft.trim() || c.name }));
+                            flashMsg("ok", "Category renamed.");
+                          } else flashMsg("err", r.error);
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  />
+                ) : null}
+                <Pressable onPress={() => confirmDeleteCategory(c.id, c.name)} style={styles.kill} disabled={busy}>
+                  <Text style={styles.killTxt}>Delete</Text>
+                </Pressable>
+              </View>
+            );
+          })}
           <View style={styles.catRow}>
             <View style={{ flex: 1 }}>
               <Field placeholder="New category" value={catName} onChangeText={setCatName} />
             </View>
             <Btn
-              label="Add"
+              label={busy ? "…" : "Add"}
               disabled={busy || !catName.trim()}
               onPress={() => {
                 void (async () => {
-                  const r = await addCategory(catName.trim());
-                  if (r.ok) {
-                    setCatName("");
-                    flashMsg("ok", "Category added.");
-                  } else flashMsg("err", r.error);
+                  setBusy(true);
+                  try {
+                    const r = await addCategory(catName.trim());
+                    if (r.ok) {
+                      setCatName("");
+                      flashMsg("ok", "Category added.");
+                    } else flashMsg("err", r.error);
+                  } finally {
+                    setBusy(false);
+                  }
                 })();
               }}
             />
@@ -502,7 +556,34 @@ export default function Owner() {
           <Text style={styles.section}>Printable QR sheet</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Btn label="Print" onPress={printSheet} variant="gold" />
-            <Btn label="Restore demo" variant="outline" onPress={restoreDemo} />
+            <Btn
+              label="Restore demo"
+              variant="outline"
+              disabled={busy}
+              onPress={() => {
+                const msg = "Reset this café menu back to the demo seed? Custom edits will be lost.";
+                const run = async () => {
+                  setBusy(true);
+                  try {
+                    const r = await restoreDemo();
+                    if (r.ok) {
+                      setEditing(null);
+                      flashMsg("ok", "Demo menu restored.");
+                    } else flashMsg("err", r.error);
+                  } finally {
+                    setBusy(false);
+                  }
+                };
+                if (Platform.OS === "web" && typeof window !== "undefined") {
+                  if (window.confirm(msg)) void run();
+                } else {
+                  Alert.alert("Restore demo", msg, [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Restore", style: "destructive", onPress: () => void run() },
+                  ]);
+                }
+              }}
+            />
           </View>
         </View>
       </View>

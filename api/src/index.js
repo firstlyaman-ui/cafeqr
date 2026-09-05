@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { getDb } = require("./db");
-const { seed } = require("./seed");
+const { seed, resetCafe } = require("./seed");
 
 const PORT = process.env.PORT || 8787;
 const TAX_RATE = 0.08;
@@ -453,6 +453,28 @@ async function createApp() {
     const row = db.prepare("SELECT * FROM orders WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
     if (!row) return res.status(404).json({ error: "Order not found" });
     res.json(mapOrder(row));
+  });
+
+  // Reset seeded demo café (owner PIN) — reliable mid-demo reset
+  app.post("/cafes/:slug/restore-demo", async (req, res) => {
+    const cafe = requireOwner(db, req, res, req.params.slug);
+    if (!cafe) return;
+    try {
+      await resetCafe(cafe.slug);
+      const refreshed = getCafeBySlug(db, cafe.slug);
+      const categories = db
+        .prepare("SELECT * FROM categories WHERE cafe_id = ? ORDER BY sort, name")
+        .all(refreshed.id)
+        .map(mapCategory);
+      const items = db
+        .prepare("SELECT * FROM items WHERE cafe_id = ? AND active = 1 ORDER BY name")
+        .all(refreshed.id)
+        .map(mapItem);
+      res.json({ ok: true, cafe: mapCafe(refreshed), categories, items });
+    } catch (e) {
+      const status = e && e.status ? e.status : 500;
+      res.status(status).json({ error: e.message || "Restore failed" });
+    }
   });
 
   cachedApp = app;

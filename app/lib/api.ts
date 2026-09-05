@@ -163,6 +163,41 @@ export function deleteItem(slug: string, id: string, ownerPin: string) {
   });
 }
 
+export function restoreDemoCafe(slug: string, ownerPin: string) {
+  return req<{
+    ok: boolean;
+    cafe: {
+      slug: string;
+      name: string;
+      tagline: string;
+      accentColor: string;
+      hours: string;
+      address: string;
+      tableCount: number;
+      cashOnly: boolean;
+      currency: string;
+    };
+    categories: { id: string; name: string; sort: number }[];
+    items: {
+      id: string;
+      categoryId: string;
+      name: string;
+      description: string;
+      price: number;
+      prepMinutes: number;
+      tags: string[];
+      image: string;
+      hasMilk: boolean;
+      hasExtraShot: boolean;
+      active?: boolean;
+    }[];
+  }>(`/cafes/${encodeURIComponent(slug)}/restore-demo`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ownerPin,
+  });
+}
+
 export function listOrders(slug: string, staffPin: string) {
   return req<any[]>(`/cafes/${encodeURIComponent(slug)}/orders`, { staffPin });
 }

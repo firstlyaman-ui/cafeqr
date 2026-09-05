@@ -102,6 +102,7 @@ Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
 ## Product notes
 
 - Owner menu CRUD talks to the API with PIN auth; failed saves show inline errors (no silent failures).
+- `POST /cafes/:slug/restore-demo` (X-Owner-Pin) resets a seeded café to the demo menu — wired to Owner → Restore demo.
 - Printable receipt at `/order/<id>/invoice` (`window.print` on web).
 - Haptics via `expo-haptics` on native (add-to-cart, place order, PIN, staff status); no-op on web.
 - Soft visual refresh: lighter borders, rounded cards, ink/cream/amber palette kept.

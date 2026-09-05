@@ -81,6 +81,26 @@ function insertCafe(db, cafe) {
   return cafeId;
 }
 
+async function resetCafe(slug) {
+  const db = await getDb();
+  const cafeData = slug === velvetBean.slug ? velvetBean : slug === spiceLane.slug ? spiceLane : null;
+  if (!cafeData) {
+    const err = new Error("Unknown demo cafe");
+    err.status = 404;
+    throw err;
+  }
+  const existing = db.prepare("SELECT id FROM cafes WHERE slug = ?").get(slug);
+  if (existing) {
+    db.prepare("DELETE FROM orders WHERE cafe_id = ?").run(existing.id);
+    db.prepare("DELETE FROM items WHERE cafe_id = ?").run(existing.id);
+    db.prepare("DELETE FROM categories WHERE cafe_id = ?").run(existing.id);
+    db.prepare("DELETE FROM cafes WHERE id = ?").run(existing.id);
+  }
+  const id = insertCafe(db, cafeData);
+  console.log(`[seed] reset ${slug} -> id=${id}`);
+  return id;
+}
+
 async function seed() {
   const db = await getDb();
   insertCafe(db, velvetBean);
@@ -96,4 +116,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { seed, insertCafe };
+module.exports = { seed, insertCafe, resetCafe };

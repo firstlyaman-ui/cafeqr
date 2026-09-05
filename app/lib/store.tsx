@@ -148,11 +148,11 @@ interface Store extends Persist {
   refreshCafeList: () => Promise<void>;
   saveCafe: (p: Partial<CafeProfile>) => Promise<StoreResult>;
   addCategory: (name: string) => Promise<StoreResult>;
-  renameCategory: (id: string, name: string) => Promise<StoreResult>;
+  renameCategory: (id: string, name: string, opts?: { immediate?: boolean }) => Promise<StoreResult>;
   deleteCategory: (id: string) => Promise<StoreResult>;
   upsertItem: (item: MenuItem) => Promise<StoreResult>;
   deleteItem: (id: string) => Promise<StoreResult>;
-  restoreDemo: () => void;
+  restoreDemo: () => Promise<StoreResult>;
   markWelcomed: (table: string) => void;
   setGuest: (g: Partial<GuestSession>) => void;
   addToCart: (itemId: string, opts?: { milk?: MilkOption; extraShot?: boolean }, table?: string) => void;
@@ -369,26 +369,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [patch]);
 
   const renameCategory = useCallback(
-    async (id: string, name: string): Promise<StoreResult> => {
+    async (id: string, name: string, opts?: { immediate?: boolean }): Promise<StoreResult> => {
       const trimmed = name;
       patch((s) => ({
         ...s,
         categories: s.categories.map((c) => (c.id === id ? { ...c, name: trimmed } : c)),
       }));
       if (!apiOnlineRef.current) return { ok: true };
+
+      const flush = async (): Promise<StoreResult> => {
+        try {
+          await api.patchCategory(
+            stateRef.current.cafeSlug,
+            id,
+            { name: trimmed.trim() || "Category" },
+            ownerPinRef.current,
+          );
+          return { ok: true };
+        } catch (e) {
+          console.warn(e);
+          return { ok: false, error: errMsg(e, "Could not rename category") };
+        }
+      };
+
+      if (opts?.immediate) {
+        const prev = renameTimers.current[id];
+        if (prev) clearTimeout(prev);
+        delete renameTimers.current[id];
+        return flush();
+      }
+
       const prev = renameTimers.current[id];
       if (prev) clearTimeout(prev);
-      return await new Promise<StoreResult>((resolve) => {
-        renameTimers.current[id] = setTimeout(async () => {
-          try {
-            await api.patchCategory(stateRef.current.cafeSlug, id, { name: trimmed.trim() || "Category" }, ownerPinRef.current);
-            resolve({ ok: true });
-          } catch (e) {
-            console.warn(e);
-            resolve({ ok: false, error: errMsg(e, "Could not rename category") });
-          }
-        }, 450);
-      });
+      // Debounce API writes while typing; resolve immediately so callers are not hung.
+      renameTimers.current[id] = setTimeout(() => {
+        void flush();
+        delete renameTimers.current[id];
+      }, 450);
+      return { ok: true };
     },
     [patch],
   );
@@ -432,12 +450,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const prep = Number(item.prepMinutes);
       if (!Number.isFinite(prep) || prep < 0) return { ok: false, error: "Enter valid prep minutes" };
       const clean: MenuItem = {
-        ...item,
+        id: item.id,
+        categoryId: item.categoryId,
         name: item.name.trim(),
+        description: item.description || "",
         price,
         prepMinutes: prep || 5,
         image: (item.image || "").trim(),
         tags: Array.isArray(item.tags) ? item.tags : [],
+        hasMilk: !!item.hasMilk,
+        hasExtraShot: !!item.hasExtraShot,
       };
       const s = stateRef.current;
       const exists = s.items.some((i) => i.id === clean.id);
@@ -504,9 +526,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [patch],
   );
 
-  const restoreDemo = useCallback(() => {
-    void loadCafe(DEFAULT_SLUG);
-  }, [loadCafe]);
+  const restoreDemo = useCallback(async (): Promise<StoreResult> => {
+    const slug = stateRef.current.cafeSlug || DEFAULT_SLUG;
+    if (apiOnlineRef.current) {
+      try {
+        const data = await api.restoreDemoCafe(slug, ownerPinRef.current);
+        applyCafePayload(
+          slug,
+          mapApiCafe(data.cafe),
+          data.categories,
+          data.items.map(mapApiItem),
+          false,
+        );
+        setState((s) => ({ ...s, orders: [] }));
+        return { ok: true };
+      } catch (e) {
+        console.warn(e);
+        return { ok: false, error: errMsg(e, "Could not restore demo menu") };
+      }
+    }
+    const d = localDefaults(DEFAULT_SLUG);
+    applyCafePayload(DEFAULT_SLUG, d.cafe, d.categories, d.items, false);
+    setState((s) => ({ ...s, orders: demoOrders() }));
+    return { ok: true };
+  }, [applyCafePayload]);
 
   const markWelcomed = useCallback(
     (table: string) =>
