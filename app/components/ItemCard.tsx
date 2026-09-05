@@ -25,12 +25,20 @@ export function ItemCard({
   onDec: () => void;
   currency?: string;
 }) {
+  const soldOut = item.available === false;
   return (
-    <View style={styles.card}>
-      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={item.name}>
+    <View style={[styles.card, soldOut && styles.soldCard]}>
+      <Pressable
+        onPress={soldOut ? undefined : onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={soldOut ? `${item.name} sold out` : item.name}
+        disabled={soldOut}
+        style={soldOut ? { opacity: 0.55 } : undefined}
+      >
         <Photo uri={item.image} height={168}>
           <View style={styles.badges}>
-            {item.tags.includes("popular") ? <Tag label="Popular" gold /> : null}
+            {soldOut ? <Tag label="Sold out" dark /> : null}
+            {!soldOut && item.tags.includes("popular") ? <Tag label="Popular" gold /> : null}
             {item.tags.includes("veg") ? <Tag label="Veg" /> : null}
             {item.tags.includes("vegan") ? <Tag label="Vegan" dark /> : null}
             {item.tags.includes("gf") ? <Tag label="GF" /> : null}
@@ -38,12 +46,18 @@ export function ItemCard({
           <View style={styles.priceBadge}>
             <Text style={styles.priceTxt}>{money(item.price, currency)}</Text>
           </View>
-          <View style={styles.prep}>
-            <Text style={styles.prepTxt}>PREP: {item.prepMinutes} MINS</Text>
-          </View>
+          {soldOut ? (
+            <View style={styles.soldBanner}>
+              <Text style={styles.soldBannerTxt}>SOLD OUT</Text>
+            </View>
+          ) : (
+            <View style={styles.prep}>
+              <Text style={styles.prepTxt}>PREP: {item.prepMinutes} MINS</Text>
+            </View>
+          )}
         </Photo>
         <View style={styles.body}>
-          <Text style={styles.name}>{item.name.toUpperCase()}</Text>
+          <Text style={[styles.name, soldOut && { color: colors.muted }]}>{item.name.toUpperCase()}</Text>
           <Text style={styles.desc} numberOfLines={2}>
             {item.description}
           </Text>
@@ -52,9 +66,11 @@ export function ItemCard({
       <View style={[styles.foot, { paddingHorizontal: 12, paddingBottom: 12 }]}>
         <Text style={styles.cat}>
           {categoryName.toUpperCase()}
-          {item.hasMilk || item.hasExtraShot ? "  ·  OPTIONS" : ""}
+          {!soldOut && (item.hasMilk || item.hasExtraShot) ? "  ·  OPTIONS" : ""}
         </Text>
-        {qty > 0 ? (
+        {soldOut ? (
+          <Text style={styles.soldFoot}>SOLD OUT</Text>
+        ) : qty > 0 ? (
           <Stepper qty={qty} onDec={onDec} onInc={onInc} />
         ) : (
           <AddBtn
@@ -77,6 +93,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...shadow.card,
   },
+  soldCard: { backgroundColor: colors.wash },
   badges: {
     position: "absolute",
     top: 10,
@@ -106,6 +123,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   prepTxt: { color: colors.white, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  soldBanner: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(29,29,27,0.82)",
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  soldBannerTxt: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 2 },
   body: { padding: 12, gap: 6 },
   name: { fontSize: 14, fontWeight: "800", letterSpacing: 0.5, color: colors.ink },
   desc: { fontSize: 13, lineHeight: 18, color: colors.muted },
@@ -117,4 +144,5 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cat: { flex: 1, fontSize: 10, letterSpacing: 1, fontWeight: "700", color: colors.faint },
+  soldFoot: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2, color: colors.muted },
 });

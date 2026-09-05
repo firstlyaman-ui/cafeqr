@@ -8,6 +8,8 @@ export type DietaryFilter = "all" | "veg" | "vegan" | "gf";
 
 export type CurrencyCode = "USD" | "INR";
 
+export type DiningOption = "dine_in" | "takeaway";
+
 export interface CafeProfile {
   slug: string;
   name: string;
@@ -18,6 +20,7 @@ export interface CafeProfile {
   cashOnly: boolean;
   currency: CurrencyCode;
   address: string;
+  orderingEnabled: boolean;
 }
 
 export interface MenuCategory {
@@ -37,6 +40,7 @@ export interface MenuItem {
   image: string;
   hasMilk: boolean;
   hasExtraShot: boolean;
+  available: boolean;
 }
 
 export interface CartLine {
@@ -76,9 +80,13 @@ export interface Order {
   createdAt: number;
   estimatedWait: number;
   payCash: boolean;
+  confirmCode: string;
+  diningOption: DiningOption;
 }
 
 export const TAX_RATE = 0.08;
+/** Demo GST for INR cafes (shown as CGST 2.5% + SGST 2.5%). */
+export const INR_GST_RATE = 0.05;
 export const EXTRA_SHOT_PRICE = 0.75;
 export const ALT_MILK_PRICE = 0.5;
 export const OWNER_PIN = "1234";

@@ -10,6 +10,7 @@ export const demoCafe: CafeProfile = {
   cashOnly: true,
   currency: "USD",
   address: "42 Blossom Lane, Corner Bistro Plaza",
+  orderingEnabled: true,
 };
 
 export const demoCategories: MenuCategory[] = [
@@ -33,6 +34,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=900&q=80",
     hasMilk: true,
     hasExtraShot: true,
+    available: true,
   },
   {
     id: "macchiato",
@@ -46,6 +48,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1485808191679-5f86534bd76f?auto=format&fit=crop&w=900&q=80",
     hasMilk: true,
     hasExtraShot: true,
+    available: true,
   },
   {
     id: "nitro",
@@ -59,6 +62,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "matcha",
@@ -72,6 +76,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?auto=format&fit=crop&w=900&q=80",
     hasMilk: true,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "chai",
@@ -85,6 +90,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?auto=format&fit=crop&w=900&q=80",
     hasMilk: true,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "truffle-toast",
@@ -98,6 +104,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "avocado",
@@ -111,6 +118,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1541519227354-08fa9d52bf53?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "pancakes",
@@ -124,6 +132,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "panini",
@@ -137,6 +146,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1539252554453-80da39721045?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "bowl",
@@ -150,6 +160,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "croissant",
@@ -163,6 +174,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
   {
     id: "babka",
@@ -176,6 +188,7 @@ export const demoItems: MenuItem[] = [
       "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   },
 ];
 
@@ -195,6 +208,8 @@ export function demoOrders(now = Date.now()): Order[] {
       tax: 0.8,
       total: 10.85,
       status: "new",
+      confirmCode: "4821",
+      diningOption: "dine_in",
       createdAt: now - 4 * 60000,
       estimatedWait: 4,
       payCash: true,
@@ -213,6 +228,8 @@ export function demoOrders(now = Date.now()): Order[] {
       tax: 1.5,
       total: 20.2,
       status: "preparing",
+      confirmCode: "3910",
+      diningOption: "dine_in",
       createdAt: now - 11 * 60000,
       estimatedWait: 14,
       payCash: true,
@@ -231,6 +248,8 @@ export function demoOrders(now = Date.now()): Order[] {
       tax: 1.83,
       total: 24.73,
       status: "ready",
+      confirmCode: "7742",
+      diningOption: "takeaway",
       createdAt: now - 18 * 60000,
       estimatedWait: 10,
       payCash: true,

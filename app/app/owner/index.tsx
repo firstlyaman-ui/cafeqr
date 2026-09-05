@@ -59,6 +59,7 @@ export default function Owner() {
   const [address, setAddress] = useState(cafe.address || "");
   const [tables, setTables] = useState(String(cafe.tableCount));
   const [cash, setCash] = useState(cafe.cashOnly);
+  const [orderingOn, setOrderingOn] = useState(cafe.orderingEnabled !== false);
   const [accent, setAccent] = useState(cafe.accentColor);
   const [catName, setCatName] = useState("");
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -93,6 +94,7 @@ export default function Owner() {
     setAddress(cafe.address || "");
     setTables(String(cafe.tableCount));
     setCash(cafe.cashOnly);
+    setOrderingOn(cafe.orderingEnabled !== false);
     setAccent(cafe.accentColor);
   }, [cafe]);
 
@@ -150,6 +152,7 @@ export default function Owner() {
         accentColor: accent,
         tableCount: Math.max(1, Math.min(24, parseIntInput(tables, 1) || 1)),
         cashOnly: cash,
+        orderingEnabled: orderingOn,
       });
       if (r.ok) flashMsg("ok", apiOnline ? "Café profile saved." : "Saved locally (API offline).");
       else flashMsg("err", r.error);
@@ -332,6 +335,11 @@ export default function Owner() {
           <Field label="Custom hex" value={accent} onChangeText={setAccent} />
           <Field label="Tables (QR 01–N)" value={tables} onChangeText={setTables} keyboardType="number-pad" />
           <Toggle label={cash ? "Cash only · on" : "Cash only · off"} on={cash} onPress={() => setCash((v) => !v)} />
+          <Toggle
+            label={orderingOn ? "QR ordering · open" : "QR ordering · paused"}
+            on={orderingOn}
+            onPress={() => setOrderingOn((v) => !v)}
+          />
           <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
         </View>
 
@@ -429,16 +437,39 @@ export default function Owner() {
                   <Text style={{ color: colors.faint, fontSize: 12 }}>Empty category</Text>
                 ) : null}
                 {catItems.map((it) => (
-                  <Pressable key={it.id} onPress={() => { setFormErr(""); setEditing(toDraft(it)); }} style={styles.itemRow}>
-                    <Image source={{ uri: it.image || DEFAULT_IMAGE }} style={styles.thumb} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemName}>{it.name}</Text>
-                      <Text style={styles.itemMeta}>
-                        {money(it.price, cur)} · {it.prepMinutes} min · {it.tags.join(" · ") || "no tags"}
-                      </Text>
-                    </View>
-                    <Text style={styles.edit}>Edit</Text>
-                  </Pressable>
+                  <View key={it.id} style={styles.itemRow}>
+                    <Pressable
+                      onPress={() => { setFormErr(""); setEditing(toDraft(it)); }}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+                    >
+                      <Image source={{ uri: it.image || DEFAULT_IMAGE }} style={[styles.thumb, it.available === false && { opacity: 0.45 }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName}>{it.name}{it.available === false ? " · SOLD OUT" : ""}</Text>
+                        <Text style={styles.itemMeta}>
+                          {money(it.price, cur)} · {it.prepMinutes} min · {it.tags.join(" · ") || "no tags"}
+                        </Text>
+                      </View>
+                      <Text style={styles.edit}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        void (async () => {
+                          setBusy(true);
+                          try {
+                            const r = await upsertItem({ ...it, available: it.available === false });
+                            if (r.ok) flashMsg("ok", it.available === false ? "Marked available." : "Marked sold out.");
+                            else flashMsg("err", r.error);
+                          } finally {
+                            setBusy(false);
+                          }
+                        })();
+                      }}
+                      style={styles.availBtn}
+                      disabled={busy}
+                    >
+                      <Text style={styles.availTxt}>{it.available === false ? "Available" : "Sold out"}</Text>
+                    </Pressable>
+                  </View>
                 ))}
               </View>
             );
@@ -535,6 +566,11 @@ export default function Owner() {
                 on={editing.hasExtraShot}
                 onPress={() => setEditing({ ...editing, hasExtraShot: !editing.hasExtraShot })}
               />
+              <Toggle
+                label={editing.available !== false ? "Available for order" : "Sold out"}
+                on={editing.available !== false}
+                onPress={() => setEditing({ ...editing, available: editing.available === false })}
+              />
             </View>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <View style={{ flex: 1, minWidth: 140 }}>
@@ -588,15 +624,15 @@ export default function Owner() {
         </View>
       </View>
 
-      <View style={styles.sheet}>
+      <View style={styles.sheet} {...({ className: "qr-print-sheet" } as any)}>
         <Text style={styles.sheetTitle}>{cafe.name}</Text>
         <Text style={styles.sheetSub}>Scan the code on your table to order · cash at the counter</Text>
-        <View style={styles.qrGrid}>
+        <View style={styles.qrGrid} {...({ className: "qr-print-grid" } as any)}>
           {Array.from({ length: count }, (_, i) => {
             const n = i + 1;
             const url = tableUrlFor(slug, n);
             return (
-              <View key={n} style={styles.qrCard}>
+              <View key={n} style={styles.qrCard} {...({ className: "qr-print-cell" } as any)}>
                 <Image source={{ uri: qrDataUri(url, colors.ink) }} style={styles.qr} />
                 <Text style={styles.qrTable}>TABLE {String(n).padStart(2, "0")}</Text>
                 <Text style={styles.qrUrl} numberOfLines={2}>
@@ -680,4 +716,13 @@ const styles = StyleSheet.create({
   qr: { width: 160, height: 160 },
   qrTable: { fontWeight: "800", letterSpacing: 1.2, color: colors.ink },
   qrUrl: { fontSize: 10, color: colors.muted, textAlign: "center" },
+  availBtn: {
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: colors.white,
+  },
+  availTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, color: colors.ink, textTransform: "uppercase" },
 });

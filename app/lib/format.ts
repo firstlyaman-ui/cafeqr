@@ -1,6 +1,7 @@
 import {
   ALT_MILK_PRICE,
   EXTRA_SHOT_PRICE,
+  INR_GST_RATE,
   TAX_RATE,
   type CartLine,
   type MenuItem,
@@ -64,14 +65,17 @@ export function cartTotals(lines: CartLine[], items: MenuItem[], currency: strin
     return sum + lineUnitPrice(item, line.milk, line.extraShot) * line.qty;
   }, 0);
   const roundedSub = Math.round(subtotal * 100) / 100;
-  const tax = currency === "INR" ? 0 : Math.round(roundedSub * TAX_RATE * 100) / 100;
+  const rate = currency === "INR" ? INR_GST_RATE : TAX_RATE;
+  const tax = Math.round(roundedSub * rate * 100) / 100;
   const total = Math.round((roundedSub + tax) * 100) / 100;
   const count = lines.reduce((n, l) => n + l.qty, 0);
   const wait = lines.reduce((max, line) => {
     const item = items.find((i) => i.id === line.itemId);
     return Math.max(max, item ? item.prepMinutes : 0);
   }, 0);
-  return { subtotal: roundedSub, tax, total, count, wait };
+  const cgst = currency === "INR" ? Math.round((tax / 2) * 100) / 100 : 0;
+  const sgst = currency === "INR" ? Math.round((tax - cgst) * 100) / 100 : 0;
+  return { subtotal: roundedSub, tax, total, count, wait, cgst, sgst, gstRate: rate };
 }
 
 export function optionBlurb(milk?: MilkOption, extraShot?: boolean): string {
@@ -100,8 +104,8 @@ export function nextStatus(s: OrderStatus): OrderStatus | null {
   return null;
 }
 
-export function nextStatusLabel(s: OrderStatus): string | null {
-  if (s === "new") return "Mark preparing";
+export function nextStatusLabel(s: OrderStatus, confirmCode?: string): string | null {
+  if (s === "new") return confirmCode ? `Confirm ${confirmCode}` : "Confirm order";
   if (s === "preparing") return "Mark ready";
   if (s === "ready") return "Mark paid";
   return null;
@@ -126,6 +130,10 @@ export function orderPrefixFromSlug(slug: string): string {
   const parts = String(slug || "cq").split("-").filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return String(slug).slice(0, 2).toUpperCase() || "CQ";
+}
+
+export function genConfirmCode(): string {
+  return String(1000 + Math.floor(Math.random() * 9000));
 }
 
 export function timeAgo(ts: number): string {

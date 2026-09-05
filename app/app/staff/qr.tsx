@@ -22,22 +22,26 @@ export default function StaffQr() {
 
   return (
     <Screen maxWidth={980}>
-      <Text style={[type.kicker, { color: colors.muted }]}>Print and stick</Text>
-      <Text style={[type.title, { marginTop: 8 }]}>Table QR sheet</Text>
-      <Text style={[type.body, { color: colors.muted, marginTop: 8 }]}>
-        {cafe.name} · {cafe.tableCount} tables · paths /c/{slug}/t/NN. Tape one per seat. Guests scan and order.
-        On web, use print — it hides this chrome.
-      </Text>
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 16, marginBottom: 20, flexWrap: "wrap" }}>
-        <Btn label="Print sheet" onPress={print} />
-        <Btn label="Kitchen board" href={`/staff?slug=${slug}` as any} variant="outline" />
+      <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)}>
+        <Text style={[type.kicker, { color: colors.muted }]}>Print and stick</Text>
+        <Text style={[type.title, { marginTop: 8 }]}>Table QR sheet</Text>
+        <Text style={[type.body, { color: colors.muted, marginTop: 8 }]}>
+          {cafe.name} · {cafe.tableCount} tables · paths /c/{slug}/t/NN. Tape one per seat. Guests scan and order. On
+          web, use print — chrome hides and QRs fit one page.
+        </Text>
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 16, marginBottom: 20, flexWrap: "wrap" }}>
+          <Btn label="Print sheet" onPress={print} />
+          <Btn label="Kitchen board" href={`/staff?slug=${slug}` as any} variant="outline" />
+        </View>
       </View>
-      <View style={styles.grid}>
+      <View style={styles.grid} {...({ className: "qr-print-grid" } as any)}>
         {tables.map((t) => (
-          <View key={t} style={styles.cell}>
+          <View key={t} style={styles.cell} {...({ className: "qr-print-cell" } as any)}>
             <QrImage value={tableUrlFor(slug, t)} caption={tableLabel(t)} size={140} />
             <Text style={styles.cafe}>{cafe.name}</Text>
-            <Text style={styles.path}>/c/{slug}/t/{t}</Text>
+            <Text style={styles.path}>
+              /c/{slug}/t/{t}
+            </Text>
           </View>
         ))}
       </View>
@@ -46,8 +50,8 @@ export default function StaffQr() {
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  cell: { width: 200, alignItems: "center" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
+  cell: { width: 200, alignItems: "center", marginBottom: 8 },
   cafe: { marginTop: 6, fontSize: 11, color: colors.muted, textAlign: "center" },
   path: { fontSize: 10, color: colors.gold, textAlign: "center", marginTop: 2 },
 });

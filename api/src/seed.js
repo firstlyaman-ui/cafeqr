@@ -9,8 +9,8 @@ function insertCafe(db, cafe) {
   }
 
   const info = db.prepare(
-    `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, owner_pin, staff_pin)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, owner_pin, staff_pin, ordering_enabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     cafe.slug,
     cafe.name,
@@ -22,7 +22,8 @@ function insertCafe(db, cafe) {
     cafe.cash_only,
     cafe.currency,
     cafe.owner_pin,
-    cafe.staff_pin
+    cafe.staff_pin,
+    cafe.ordering_enabled === 0 ? 0 : 1
   );
   const cafeId = info.lastInsertRowid;
 
@@ -34,8 +35,8 @@ function insertCafe(db, cafe) {
   }
 
   const insItem = db.prepare(
-    `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+    `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, active, available)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
   );
   for (const it of cafe.items) {
     insItem.run(
@@ -49,14 +50,15 @@ function insertCafe(db, cafe) {
       JSON.stringify(it.tags),
       it.image,
       it.has_milk,
-      it.has_extra_shot
+      it.has_extra_shot,
+      it.available === 0 ? 0 : 1
     );
   }
 
   const now = Date.now();
   const insOrd = db.prepare(
-    `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, total, status, estimated_wait, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   for (const o of cafe.demoOrders(cafeId, now)) {
     insOrd.run(
@@ -72,6 +74,8 @@ function insertCafe(db, cafe) {
       o.total,
       o.status,
       o.estimated_wait,
+      o.confirm_code || "",
+      o.dining_option || "dine_in",
       o.created_at,
       o.updated_at
     );

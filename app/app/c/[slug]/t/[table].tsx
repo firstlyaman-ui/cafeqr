@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CartBar } from "@/components/CartBar";
@@ -33,6 +33,7 @@ export default function CafeTableMenu() {
   const [sheet, setSheet] = useState<MenuItem | null>(null);
   const [bag, setBag] = useState(false);
   const [welcomeOn, setWelcomeOn] = useState(true);
+  const [search, setSearch] = useState("");
   const cols = useCols(300);
 
   useEffect(() => {
@@ -54,13 +55,23 @@ export default function CafeTableMenu() {
   const cur = cafe.currency || "USD";
 
   const visible = useMemo(() => {
-    return items.filter((it) => (cat === "all" || it.categoryId === cat) && dietOk(it, diet));
-  }, [items, cat, diet]);
+    const q = search.trim().toLowerCase();
+    return items.filter((it) => {
+      if (cat !== "all" && it.categoryId !== cat) return false;
+      if (!dietOk(it, diet)) return false;
+      if (!q) return true;
+      return (
+        it.name.toLowerCase().includes(q) ||
+        (it.description || "").toLowerCase().includes(q)
+      );
+    });
+  }, [items, cat, diet, search]);
 
   const qtyFor = (id: string) => cart.filter((l) => l.itemId === id).reduce((n, l) => n + l.qty, 0);
   const firstLine = (id: string) => cart.find((l) => l.itemId === id);
 
   const bump = (item: MenuItem, dir: 1 | -1) => {
+    if (item.available === false) return;
     const line = firstLine(item.id);
     if (!line) {
       if (dir > 0) {
@@ -71,6 +82,8 @@ export default function CafeTableMenu() {
     }
     setQty(line.lineId, line.qty + dir);
   };
+
+  const orderingOn = cafe.orderingEnabled !== false;
 
   if (!ready || loadingCafe || cafeSlug !== slug) return <Loading />;
 
@@ -147,6 +160,25 @@ export default function CafeTableMenu() {
           </ScrollView>
         </View>
 
+        {!orderingOn ? (
+          <View style={styles.pauseBox}>
+            <Text style={styles.pauseTxt}>Ordering paused — please call staff</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.searchWrap}>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search menu…"
+            placeholderTextColor={colors.faint}
+            style={styles.search}
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+        </View>
+
         <View style={styles.banner}>
           <View style={[styles.pop, { backgroundColor: accent }]}>
             <Text style={styles.popTxt}>POPULAR</Text>
@@ -170,8 +202,9 @@ export default function CafeTableMenu() {
                   categoryName={catName}
                   qty={q}
                   currency={cur}
-                  onOpen={() => setSheet(item)}
+                  onOpen={() => { if (item.available !== false) setSheet(item); }}
                   onAdd={() => {
+                    if (item.available === false) return;
                     if (item.hasMilk || item.hasExtraShot) setSheet(item);
                     else { void hapticLight(); addToCart(item.id, {}, table); }
                   }}
@@ -191,7 +224,10 @@ export default function CafeTableMenu() {
         cash={cafe.cashOnly}
         currency={cur}
         onBag={() => setBag(true)}
-        onCheckout={() => router.push({ pathname: "/checkout", params: { table, slug } } as any)}
+        onCheckout={() => {
+          if (!orderingOn) return;
+          router.push({ pathname: "/checkout", params: { table, slug } } as any);
+        }}
       />
 
       <WelcomeModal
@@ -275,4 +311,26 @@ const styles = StyleSheet.create({
   bannerSub: { fontSize: 14, color: colors.muted },
   grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 10, paddingBottom: 12 },
   cell: { padding: 6 },
+  searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  search: {
+    borderWidth: 1,
+    borderColor: colors.ink,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.ink,
+    minHeight: 44,
+  },
+  pauseBox: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.ink,
+    backgroundColor: colors.goldSoft,
+  },
+  pauseTxt: { fontWeight: "800", color: colors.ink, letterSpacing: 0.3 },
 });

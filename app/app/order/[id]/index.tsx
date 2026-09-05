@@ -4,6 +4,8 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
 import { money, statusLabel, tableLabel, waitCopy } from "@/lib/format";
+import { hapticMedium } from "@/lib/haptics";
+import { diningLabel, shareReceipt } from "@/lib/share";
 import { useStore } from "@/lib/store";
 import { colors, radius } from "@/lib/theme";
 import type { OrderStatus } from "@/lib/types";
@@ -28,14 +30,23 @@ export default function OrderStatusScreen() {
   }
 
   const idx = STEPS.indexOf(order.status);
+  const half = Math.round((order.tax / 2) * 100) / 100;
 
   return (
     <Screen maxWidth={560}>
       <Text style={styles.k}>Ticket {order.id}</Text>
       <Text style={styles.h}>WE HAVE YOUR ORDER</Text>
       <Text style={styles.sub}>
-        {tableLabel(order.table)} · {order.guestName}. Status: {statusLabel(order.status)}.
+        {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}. Status:{" "}
+        {statusLabel(order.status)}.
       </Text>
+
+      {order.status === "new" && order.confirmCode ? (
+        <View style={styles.codeBox}>
+          <Text style={styles.codeLbl}>Show this code to staff</Text>
+          <Text style={styles.code}>{order.confirmCode}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.track}>
         {STEPS.map((s, i) => (
@@ -63,12 +74,33 @@ export default function OrderStatusScreen() {
             <Text style={{ fontWeight: "800" }}>{money(line.unitPrice * line.qty, cur)}</Text>
           </View>
         ))}
+        {cur === "INR" && order.tax > 0 ? (
+          <>
+            <View style={styles.row}>
+              <Text style={{ color: colors.muted }}>CGST 2.5%</Text>
+              <Text>{money(half, cur)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={{ color: colors.muted }}>SGST 2.5%</Text>
+              <Text>{money(order.tax - half, cur)}</Text>
+            </View>
+          </>
+        ) : null}
         {order.notes ? <Text style={{ color: colors.muted, marginTop: 8 }}>Note: {order.notes}</Text> : null}
       </View>
 
-      <Btn label="Print receipt" href={`/order/${order.id}/invoice` as any} variant="gold" />
+      <Btn
+        label="Share on WhatsApp"
+        onPress={() => {
+          void hapticMedium();
+          void shareReceipt(cafe, order);
+        }}
+        variant="gold"
+      />
       <View style={{ height: 10 }} />
-      <Btn label="Order more" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
+      <Btn label="Print receipt" href={`/order/${order.id}/invoice` as any} variant="outline" />
+      <View style={{ height: 10 }} />
+      <Btn label="Add more items" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
       <View style={{ height: 10 }} />
       <Btn label="Staff board" href={`/staff?slug=${cafe.slug || "velvet-bean"}` as any} variant="outline" />
     </Screen>
@@ -79,6 +111,15 @@ const styles = StyleSheet.create({
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
   h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.6, color: colors.ink, marginTop: 8 },
   sub: { color: colors.muted, marginTop: 8, marginBottom: 22, lineHeight: 22 },
+  codeBox: {
+    backgroundColor: colors.ink,
+    borderRadius: radius,
+    padding: 18,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  codeLbl: { color: colors.gold, fontSize: 11, fontWeight: "800", letterSpacing: 1.6, textTransform: "uppercase" },
+  code: { color: colors.white, fontSize: 42, fontWeight: "800", letterSpacing: 8, marginTop: 8 },
   track: { flexDirection: "row", gap: 6, marginBottom: 18, flexWrap: "wrap" },
   step: {
     flexGrow: 1,

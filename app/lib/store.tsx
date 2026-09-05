@@ -10,12 +10,13 @@ import React, {
 } from "react";
 
 import * as api from "./api";
-import { cartTotals, lineUnitPrice, nid, orderCode, orderPrefixFromSlug } from "./format";
+import { cartTotals, genConfirmCode, lineUnitPrice, nid, orderCode, orderPrefixFromSlug } from "./format";
 import { demoCafe, demoCategories, demoItems, demoOrders } from "./seed";
 import type {
   CafeProfile,
   CartLine,
   DietaryTag,
+  DiningOption,
   GuestSession,
   MenuCategory,
   MenuItem,
@@ -54,7 +55,7 @@ function localDefaults(slug = DEFAULT_SLUG): Persist {
   return {
     cafe: { ...demoCafe, slug },
     categories: demoCategories.map((c) => ({ ...c })),
-    items: demoItems.map((i) => ({ ...i, tags: [...i.tags] as DietaryTag[] })),
+    items: demoItems.map((i) => ({ ...i, tags: [...i.tags] as DietaryTag[], available: i.available !== false })),
     cart: [],
     cartTable: null,
     guest: { ...emptyGuest },
@@ -73,6 +74,7 @@ function mapApiCafe(c: {
   tableCount: number;
   cashOnly: boolean;
   currency: string;
+  orderingEnabled?: boolean;
 }): CafeProfile {
   return {
     slug: c.slug,
@@ -84,6 +86,7 @@ function mapApiCafe(c: {
     tableCount: c.tableCount,
     cashOnly: c.cashOnly,
     currency: (c.currency === "INR" ? "INR" : "USD") as CafeProfile["currency"],
+    orderingEnabled: c.orderingEnabled !== false,
   };
 }
 
@@ -98,6 +101,7 @@ function mapApiItem(i: {
   image: string;
   hasMilk: boolean;
   hasExtraShot: boolean;
+  available?: boolean;
 }): MenuItem {
   return {
     id: i.id,
@@ -110,6 +114,7 @@ function mapApiItem(i: {
     image: i.image,
     hasMilk: i.hasMilk,
     hasExtraShot: i.hasExtraShot,
+    available: i.available !== false,
   };
 }
 
@@ -128,6 +133,8 @@ function mapApiOrder(o: any): Order {
     createdAt: o.createdAt,
     estimatedWait: o.estimatedWait,
     payCash: o.payCash !== false,
+    confirmCode: o.confirmCode || "",
+    diningOption: o.diningOption === "takeaway" ? "takeaway" : "dine_in",
   };
 }
 
@@ -164,8 +171,10 @@ interface Store extends Persist {
     guestName: string;
     phone: string;
     notes: string;
+    diningOption?: DiningOption;
   }) => Promise<Order | null>;
   setOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
+  rejectOrder: (id: string) => Promise<void>;
   verifyOwnerPin: (pin: string) => Promise<boolean>;
   verifyStaffPin: (pin: string) => Promise<boolean>;
 }
@@ -244,6 +253,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             tableCount: 8,
             cashOnly: true,
             currency: "USD",
+            orderingEnabled: true,
           },
           [],
           [],
@@ -460,6 +470,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         tags: Array.isArray(item.tags) ? item.tags : [],
         hasMilk: !!item.hasMilk,
         hasExtraShot: !!item.hasExtraShot,
+        available: item.available !== false,
       };
       const s = stateRef.current;
       const exists = s.items.some((i) => i.id === clean.id);
@@ -623,11 +634,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const clearCart = useCallback(() => patch((s) => ({ ...s, cart: [], cartTable: null })), [patch]);
 
   const placeOrder = useCallback(
-    async (input: { table: string; guestName: string; phone: string; notes: string }) => {
+    async (input: {
+      table: string;
+      guestName: string;
+      phone: string;
+      notes: string;
+      diningOption?: DiningOption;
+    }) => {
       const s = stateRef.current;
       if (!s.cart.length) return null;
-      const totals = cartTotals(s.cart, s.items, s.cafe.currency);
-      const items = s.cart
+      if (s.cafe.orderingEnabled === false) return null;
+      // Drop sold-out lines
+      const sellable = s.cart.filter((line) => {
+        const item = s.items.find((i) => i.id === line.itemId);
+        return item && item.available !== false;
+      });
+      if (!sellable.length) return null;
+      const totals = cartTotals(sellable, s.items, s.cafe.currency);
+      const items = sellable
         .map((line) => {
           const item = s.items.find((i) => i.id === line.itemId);
           if (!item) return null;
@@ -642,6 +666,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         })
         .filter(Boolean) as Order["items"];
 
+      const diningOption: DiningOption = input.diningOption === "takeaway" ? "takeaway" : "dine_in";
+      const confirmCode = genConfirmCode();
+
       const localOrder: Order = {
         id: orderCode(orderPrefixFromSlug(s.cafeSlug)),
         table: input.table,
@@ -650,12 +677,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         notes: input.notes.trim(),
         items,
         subtotal: totals.subtotal,
-        tax: s.cafe.currency === "INR" ? 0 : totals.tax,
-        total: s.cafe.currency === "INR" ? totals.subtotal : totals.total,
+        tax: totals.tax,
+        total: totals.total,
         status: "new",
         createdAt: Date.now(),
         estimatedWait: Math.max(4, totals.wait),
         payCash: s.cafe.cashOnly,
+        confirmCode,
+        diningOption,
       };
 
       if (apiOnlineRef.current) {
@@ -670,6 +699,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             tax: localOrder.tax,
             total: localOrder.total,
             estimatedWait: localOrder.estimatedWait,
+            confirmCode,
+            diningOption,
           });
           const order = mapApiOrder(created);
           setState({
@@ -684,7 +715,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           });
           return order;
         } catch (e) {
-          console.warn("[cafeqr] placeOrder API failed, using local", e);
+          console.warn("[cafeqr] placeOrder API failed", e);
+          throw e;
         }
       }
 
@@ -711,6 +743,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (apiOnlineRef.current) {
       try {
         await api.patchOrder(stateRef.current.cafeSlug, id, status, staffPinRef.current);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+  }, [patch]);
+
+  const rejectOrder = useCallback(async (id: string) => {
+    patch((s) => ({ ...s, orders: s.orders.filter((o) => o.id !== id) }));
+    if (apiOnlineRef.current) {
+      try {
+        await api.deleteOrder(stateRef.current.cafeSlug, id, staffPinRef.current);
       } catch (e) {
         console.warn(e);
       }
@@ -775,6 +818,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       setOrderStatus,
+      rejectOrder,
       verifyOwnerPin,
       verifyStaffPin,
     }),
@@ -805,6 +849,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       setOrderStatus,
+      rejectOrder,
       verifyOwnerPin,
       verifyStaffPin,
     ],
@@ -832,5 +877,6 @@ export function emptyItem(categoryId: string): MenuItem {
       "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    available: true,
   };
 }

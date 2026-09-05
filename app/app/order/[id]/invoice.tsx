@@ -1,10 +1,11 @@
 import { useLocalSearchParams } from "expo-router";
 import React from "react";
-import { Platform, Share, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
 import { money, optionBlurb, tableLabel } from "@/lib/format";
 import { hapticMedium } from "@/lib/haptics";
+import { diningLabel, shareReceipt } from "@/lib/share";
 import { useStore } from "@/lib/store";
 import { borderWidth, colors, radius } from "@/lib/theme";
 
@@ -39,34 +40,18 @@ export default function OrderInvoice() {
     );
   }
 
-  const printOrShare = async () => {
+  const half = Math.round((order.tax / 2) * 100) / 100;
+
+  const printReceipt = () => {
     void hapticMedium();
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.print();
-      return;
     }
-    const lines = [
-      cafe.name,
-      `Order ${order.id}`,
-      tableLabel(order.table),
-      `Guest: ${order.guestName}`,
-      "",
-      ...order.items.map((l) => {
-        const extra = optionBlurb(l.milk, l.extraShot);
-        return `${l.qty}× ${l.name}${extra ? ` (${extra})` : ""}  ${money(l.unitPrice * l.qty, cur)}`;
-      }),
-      "",
-      `Subtotal  ${money(order.subtotal, cur)}`,
-      `Tax  ${money(order.tax, cur)}`,
-      `Total  ${money(order.total, cur)}`,
-      order.payCash ? "Cash due at counter" : "Pay when collecting",
-      formatStamp(order.createdAt),
-    ];
-    try {
-      await Share.share({ message: lines.join("\n"), title: `CafeQR ${order.id}` });
-    } catch {
-      /* user cancelled */
-    }
+  };
+
+  const onShare = async () => {
+    void hapticMedium();
+    await shareReceipt(cafe, order);
   };
 
   return (
@@ -74,7 +59,8 @@ export default function OrderInvoice() {
       <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)} style={{ marginBottom: 16, gap: 10 }}>
         <Text style={styles.k}>Receipt</Text>
         <Text style={styles.h}>Order invoice</Text>
-        <Btn label={Platform.OS === "web" ? "Print" : "Share / print"} onPress={() => void printOrShare()} variant="gold" />
+        {Platform.OS === "web" ? <Btn label="Print" onPress={printReceipt} variant="gold" /> : null}
+        <Btn label="Share on WhatsApp" onPress={() => void onShare()} variant="outline" />
         <Btn label="Back to order" href={`/order/${order.id}` as any} variant="outline" />
       </View>
 
@@ -84,7 +70,9 @@ export default function OrderInvoice() {
         <View style={styles.rule} />
         <Row k="Order" v={order.id} bold />
         <Row k="Table" v={tableLabel(order.table)} />
+        <Row k="Type" v={diningLabel(order.diningOption)} />
         <Row k="Guest" v={order.guestName} />
+        {order.confirmCode ? <Row k="Staff code" v={order.confirmCode} /> : null}
         <Row k="When" v={formatStamp(order.createdAt)} />
         <View style={styles.rule} />
         {order.items.map((line, i) => {
@@ -101,12 +89,17 @@ export default function OrderInvoice() {
             </View>
           );
         })}
-        {order.notes ? (
-          <Text style={styles.notes}>Note: {order.notes}</Text>
-        ) : null}
+        {order.notes ? <Text style={styles.notes}>Note: {order.notes}</Text> : null}
         <View style={styles.rule} />
         <Row k="Subtotal" v={money(order.subtotal, cur)} />
-        <Row k="Tax" v={money(order.tax, cur)} />
+        {cur === "INR" ? (
+          <>
+            <Row k="CGST (2.5%)" v={money(half, cur)} />
+            <Row k="SGST (2.5%)" v={money(order.tax - half, cur)} />
+          </>
+        ) : (
+          <Row k="Tax" v={money(order.tax, cur)} />
+        )}
         <Row k="Total" v={money(order.total, cur)} bold />
         <View style={[styles.dueBox, { marginTop: 12 }]}>
           <Text style={styles.dueLbl}>{order.payCash ? "CASH DUE" : "AMOUNT DUE"}</Text>

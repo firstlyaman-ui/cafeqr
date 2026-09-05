@@ -10,6 +10,35 @@ export type ApiCafeListItem = {
   accentColor?: string;
 };
 
+export type ApiCafe = {
+  id?: number;
+  slug: string;
+  name: string;
+  tagline: string;
+  accentColor: string;
+  hours: string;
+  address: string;
+  tableCount: number;
+  cashOnly: boolean;
+  currency: string;
+  orderingEnabled?: boolean;
+};
+
+export type ApiItem = {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  price: number;
+  prepMinutes: number;
+  tags: string[];
+  image: string;
+  hasMilk: boolean;
+  hasExtraShot: boolean;
+  active?: boolean;
+  available?: boolean;
+};
+
 async function req<T>(
   path: string,
   opts: RequestInit & { ownerPin?: string; staffPin?: string } = {},
@@ -62,32 +91,9 @@ export function listCafes() {
 
 export function getCafe(slug: string) {
   return req<{
-    cafe: {
-      id: number;
-      slug: string;
-      name: string;
-      tagline: string;
-      accentColor: string;
-      hours: string;
-      address: string;
-      tableCount: number;
-      cashOnly: boolean;
-      currency: string;
-    };
+    cafe: ApiCafe;
     categories: { id: string; name: string; sort: number }[];
-    items: {
-      id: string;
-      categoryId: string;
-      name: string;
-      description: string;
-      price: number;
-      prepMinutes: number;
-      tags: string[];
-      image: string;
-      hasMilk: boolean;
-      hasExtraShot: boolean;
-      active?: boolean;
-    }[];
+    items: ApiItem[];
   }>(`/cafes/${encodeURIComponent(slug)}`);
 }
 
@@ -166,31 +172,9 @@ export function deleteItem(slug: string, id: string, ownerPin: string) {
 export function restoreDemoCafe(slug: string, ownerPin: string) {
   return req<{
     ok: boolean;
-    cafe: {
-      slug: string;
-      name: string;
-      tagline: string;
-      accentColor: string;
-      hours: string;
-      address: string;
-      tableCount: number;
-      cashOnly: boolean;
-      currency: string;
-    };
+    cafe: ApiCafe;
     categories: { id: string; name: string; sort: number }[];
-    items: {
-      id: string;
-      categoryId: string;
-      name: string;
-      description: string;
-      price: number;
-      prepMinutes: number;
-      tags: string[];
-      image: string;
-      hasMilk: boolean;
-      hasExtraShot: boolean;
-      active?: boolean;
-    }[];
+    items: ApiItem[];
   }>(`/cafes/${encodeURIComponent(slug)}/restore-demo`, {
     method: "POST",
     body: JSON.stringify({}),
@@ -213,6 +197,13 @@ export function patchOrder(slug: string, id: string, status: string, staffPin: s
   return req<any>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+    staffPin,
+  });
+}
+
+export function deleteOrder(slug: string, id: string, staffPin: string) {
+  return req<{ ok: boolean }>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}`, {
+    method: "DELETE",
     staffPin,
   });
 }

@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { PinGate } from "@/components/PinGate";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
+import { diningLabel } from "@/lib/share";
 import { useStore } from "@/lib/store";
 import { hapticMedium, hapticSuccess } from "@/lib/haptics";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
@@ -16,13 +17,16 @@ function Ticket({
   order,
   currency,
   onAdvance,
+  onReject,
 }: {
   order: Order;
   currency: string;
   onAdvance: (id: string, s: OrderStatus) => void;
+  onReject: (id: string) => void;
 }) {
   const nxt = nextStatus(order.status);
   const due = order.status !== "paid";
+  const primary = nextStatusLabel(order.status, order.confirmCode);
   return (
     <View style={styles.ticket}>
       <View style={styles.ticketTop}>
@@ -31,7 +35,12 @@ function Ticket({
           <Text style={styles.stTxt}>{statusLabel(order.status).toUpperCase()}</Text>
         </View>
       </View>
-      <Text style={styles.table}>{tableLabel(order.table)} · {order.guestName}</Text>
+      <Text style={styles.table}>
+        {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}
+      </Text>
+      {order.status === "new" && order.confirmCode ? (
+        <Text style={styles.code}>CODE {order.confirmCode}</Text>
+      ) : null}
       <Text style={styles.ago}>{timeAgo(order.createdAt)}</Text>
       {order.items.map((l, i) => (
         <Text key={`${l.itemId}-${l.milk ?? ""}-${l.extraShot ? "x" : ""}-${i}`} style={styles.line}>
@@ -45,9 +54,22 @@ function Ticket({
       </View>
       {nxt ? (
         <Btn
-          label={nextStatusLabel(order.status) || "Advance"}
-          onPress={() => { void hapticMedium(); onAdvance(order.id, nxt); }}
+          label={primary || "Advance"}
+          onPress={() => {
+            void hapticMedium();
+            onAdvance(order.id, nxt);
+          }}
           variant={order.status === "ready" ? "gold" : "dark"}
+        />
+      ) : null}
+      {order.status === "new" ? (
+        <Btn
+          label="Reject"
+          variant="outline"
+          onPress={() => {
+            void hapticMedium();
+            onReject(order.id);
+          }}
         />
       ) : null}
     </View>
@@ -66,6 +88,7 @@ export default function Staff() {
     cafeList,
     apiOnline,
     setOrderStatus,
+    rejectOrder,
     loadCafe,
     refreshOrders,
     refreshCafeList,
@@ -111,7 +134,10 @@ export default function Staff() {
         hint={cafe.name || "Pass & tickets"}
         pin={STAFF_PIN}
         onCheck={(p) => verifyStaffPin(p)}
-        onOk={() => { void hapticSuccess(); setStaffOk(true); }}
+        onOk={() => {
+          void hapticSuccess();
+          setStaffOk(true);
+        }}
       />
     );
   }
@@ -150,12 +176,7 @@ export default function Staff() {
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
         {FILTERS.map((f) => (
-          <Chip
-            key={f}
-            label={f === "all" ? "All" : statusLabel(f)}
-            active={filter === f}
-            onPress={() => setFilter(f)}
-          />
+          <Chip key={f} label={f === "all" ? "All" : statusLabel(f)} active={filter === f} onPress={() => setFilter(f)} />
         ))}
       </View>
 
@@ -175,6 +196,7 @@ export default function Staff() {
                     order={o}
                     currency={cur}
                     onAdvance={(id, s) => void setOrderStatus(id, s)}
+                    onReject={(id) => void rejectOrder(id)}
                   />
                 ))}
                 {!colOrders.length ? <Text style={styles.empty}>None</Text> : null}
@@ -220,6 +242,7 @@ const styles = StyleSheet.create({
   st: { backgroundColor: colors.ink, paddingHorizontal: 8, paddingVertical: 3 },
   stTxt: { color: colors.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   table: { fontWeight: "800", color: colors.ink, fontSize: 13 },
+  code: { fontSize: 16, fontWeight: "800", letterSpacing: 2, color: colors.gold },
   ago: { color: colors.muted, fontSize: 12 },
   line: { fontSize: 13, color: colors.ink },
   notes: { fontSize: 12, color: colors.muted, fontStyle: "italic" },

@@ -23,8 +23,16 @@ export default function Root({ children }: { children: ReactNode }) {
               * { box-sizing: border-box; }
               @media print {
                 header, nav, .no-print, [data-noprint="true"] { display: none !important; }
-                body { background: #fff !important; }
-                @page { margin: 12mm; }
+                body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                @page { margin: 10mm; size: auto; }
+                .qr-print-grid { display: flex !important; flex-wrap: wrap !important; gap: 8mm !important; justify-content: center !important; }
+                .qr-print-cell {
+                  break-inside: avoid;
+                  page-break-inside: avoid;
+                  width: 42mm !important;
+                  text-align: center;
+                }
+                .qr-print-cell img { width: 36mm !important; height: 36mm !important; }
               }
             `,
           }}

@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS cafes (
   currency TEXT DEFAULT 'USD',
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
+  ordering_enabled INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -168,6 +169,7 @@ CREATE TABLE IF NOT EXISTS items (
   has_milk INTEGER DEFAULT 0,
   has_extra_shot INTEGER DEFAULT 0,
   active INTEGER DEFAULT 1,
+  available INTEGER DEFAULT 1,
   FOREIGN KEY (cafe_id) REFERENCES cafes(id) ON DELETE CASCADE
 );
 
@@ -184,6 +186,8 @@ CREATE TABLE IF NOT EXISTS orders (
   total REAL NOT NULL,
   status TEXT DEFAULT 'new',
   estimated_wait INTEGER DEFAULT 5,
+  confirm_code TEXT DEFAULT '',
+  dining_option TEXT DEFAULT 'dine_in',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (cafe_id) REFERENCES cafes(id) ON DELETE CASCADE
@@ -194,6 +198,35 @@ CREATE INDEX IF NOT EXISTS idx_items_cafe ON items(cafe_id);
 CREATE INDEX IF NOT EXISTS idx_orders_cafe ON orders(cafe_id);
 `;
 
+function columnNames(adapter, table) {
+  try {
+    return adapter.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
+  } catch (_) {
+    return [];
+  }
+}
+
+/** Additive migrations for existing sql.js /tmp DBs */
+function migrate(adapter) {
+  const cafeCols = columnNames(adapter, "cafes");
+  if (cafeCols.length && !cafeCols.includes("ordering_enabled")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN ordering_enabled INTEGER DEFAULT 1");
+  }
+
+  const itemCols = columnNames(adapter, "items");
+  if (itemCols.length && !itemCols.includes("available")) {
+    adapter.exec("ALTER TABLE items ADD COLUMN available INTEGER DEFAULT 1");
+  }
+
+  const orderCols = columnNames(adapter, "orders");
+  if (orderCols.length && !orderCols.includes("confirm_code")) {
+    adapter.exec("ALTER TABLE orders ADD COLUMN confirm_code TEXT DEFAULT ''");
+  }
+  if (orderCols.length && !orderCols.includes("dining_option")) {
+    adapter.exec("ALTER TABLE orders ADD COLUMN dining_option TEXT DEFAULT 'dine_in'");
+  }
+}
+
 let adapter = null;
 
 async function getDb() {
@@ -203,15 +236,17 @@ async function getDb() {
   if (!preferSqlJs && tryBetterSqlite3()) {
     adapter = createAdapter(true);
     adapter.exec(SCHEMA);
+    migrate(adapter);
     console.log("[db] better-sqlite3 @", DB_PATH);
   } else {
     console.log(preferSqlJs ? "[db] using sql.js (Vercel/ephemeral)" : "[db] better-sqlite3 unavailable, falling back to sql.js");
     await initSqlJs();
     adapter = createAdapter(false);
     adapter.exec(SCHEMA);
+    migrate(adapter);
     console.log("[db] sql.js @", DB_PATH);
   }
   return adapter;
 }
 
-module.exports = { getDb, DB_PATH, DATA_DIR };
+module.exports = { getDb, DB_PATH, DATA_DIR, migrate };
