@@ -5,15 +5,16 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, Vi
 import { Stepper } from "@/components/ui";
 import { cartTotals, lineUnitPrice, money, optionBlurb, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { hapticLight } from "@/lib/haptics";
+import { borderWidth, colors, radius } from "@/lib/theme";
 import { TAX_RATE } from "@/lib/types";
 
-export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { cart, items, cafe, setQty } = useStore();
+export function CartDrawer({ open, onClose, table }: { open: boolean; onClose: () => void; table?: string }) {
+  const { cart, items, cafe, cartTable, setQty } = useStore();
   const cur = cafe.currency || "USD";
   const { width } = useWindowDimensions();
   const drawerW = Math.min(420, width);
-  const totals = cartTotals(cart, items);
+  const totals = cartTotals(cart, items, cafe.currency || "USD");
   const accent = cafe.accentColor || colors.gold;
 
   return (
@@ -81,10 +82,12 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
                 <Text style={styles.sumLbl}>Subtotal</Text>
                 <Text style={styles.sumVal}>{money(totals.subtotal, cur)}</Text>
               </View>
-              <View style={styles.sumRow}>
-                <Text style={styles.sumLbl}>Estimated tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
-                <Text style={styles.sumVal}>{money(totals.tax, cur)}</Text>
-              </View>
+              {cur === "INR" ? null : (
+                <View style={styles.sumRow}>
+                  <Text style={styles.sumLbl}>Estimated tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
+                  <Text style={styles.sumVal}>{money(totals.tax, cur)}</Text>
+                </View>
+              )}
               <View style={styles.rule} />
               <View style={styles.sumRow}>
                 <Text style={styles.due}>TOTAL DUE {cafe.cashOnly ? "(CASH)" : ""}</Text>
@@ -95,8 +98,10 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
 
           <Pressable
             onPress={() => {
+              void hapticLight();
               onClose();
-              router.push("/checkout");
+              const t = table || cartTable || "04";
+              router.push({ pathname: "/checkout", params: { table: t, slug: cafe.slug } } as any);
             }}
             disabled={!cart.length}
             style={[styles.cta, !cart.length && { opacity: 0.4 }]}
@@ -118,7 +123,7 @@ const styles = StyleSheet.create({
   dim: { flex: 1, backgroundColor: colors.overlay },
   drawer: {
     backgroundColor: colors.bg,
-    borderLeftWidth: 1.5,
+    borderLeftWidth: 1,
     borderColor: colors.ink,
     height: "100%",
   },
@@ -139,14 +144,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderBottomWidth: 1.5,
+    borderBottomWidth: 1,
     borderColor: colors.ink,
     backgroundColor: colors.white,
   },
   prepLbl: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2, color: colors.ink },
-  prepBadge: { paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5, borderColor: colors.ink },
+  prepBadge: { paddingHorizontal: 10, paddingVertical: 4, borderWidth, borderColor: colors.ink },
   prepBadgeTxt: { fontSize: 11, fontWeight: "800", color: colors.ink },
-  line: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.ink, padding: 12, gap: 8 },
+  line: { backgroundColor: colors.white, borderWidth, borderColor: colors.ink, padding: 12, gap: 8 },
   lineTop: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   lineName: { flex: 1, fontSize: 13, fontWeight: "800", color: colors.ink, letterSpacing: 0.4 },
   linePrice: { fontSize: 13, fontWeight: "800", color: colors.ink },
@@ -156,13 +161,13 @@ const styles = StyleSheet.create({
   blurb: { fontSize: 12, color: colors.muted },
   lineBot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   each: { fontSize: 12, color: colors.muted },
-  cashNote: { borderWidth: 1.5, borderColor: colors.ink, padding: 12 },
+  cashNote: { borderWidth, borderColor: colors.ink, padding: 12 },
   cashNoteTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 0.8, color: colors.ink },
   sum: { marginTop: 8, gap: 8 },
   sumRow: { flexDirection: "row", justifyContent: "space-between" },
   sumLbl: { color: colors.muted, fontSize: 13 },
   sumVal: { color: colors.ink, fontSize: 13, fontWeight: "700" },
-  rule: { height: 1.5, backgroundColor: colors.ink, marginVertical: 4 },
+  rule: { height: 1, backgroundColor: colors.ink, marginVertical: 4 },
   due: { fontSize: 13, fontWeight: "800", letterSpacing: 1, color: colors.ink },
   dueAmt: { fontSize: 20, fontWeight: "800", color: colors.ink },
   cta: {
@@ -173,7 +178,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   ctaTxt: { color: colors.white, fontSize: 13, fontWeight: "800", letterSpacing: 1.6 },

@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Btn, Loading, Screen } from "@/components/ui";
 import { money, statusLabel, tableLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { colors, radius } from "@/lib/theme";
 import type { OrderStatus } from "@/lib/types";
 
 const STEPS: OrderStatus[] = ["new", "preparing", "ready", "paid"];
@@ -66,9 +66,11 @@ export default function OrderStatusScreen() {
         {order.notes ? <Text style={{ color: colors.muted, marginTop: 8 }}>Note: {order.notes}</Text> : null}
       </View>
 
-      <Btn label="Order more" href={`/t/${order.table}`} variant="gold" />
+      <Btn label="Print receipt" href={`/order/${order.id}/invoice` as any} variant="gold" />
       <View style={{ height: 10 }} />
-      <Btn label="Staff board" href="/staff" variant="outline" />
+      <Btn label="Order more" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
+      <View style={{ height: 10 }} />
+      <Btn label="Staff board" href={`/staff?slug=${cafe.slug || "velvet-bean"}` as any} variant="outline" />
     </Screen>
   );
 }
@@ -81,8 +83,8 @@ const styles = StyleSheet.create({
   step: {
     flexGrow: 1,
     minWidth: 70,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.line,
     paddingVertical: 10,
     alignItems: "center",
     backgroundColor: colors.white,
@@ -90,8 +92,9 @@ const styles = StyleSheet.create({
   stepTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.ink },
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius,
     padding: 16,
     marginBottom: 16,
     gap: 8,

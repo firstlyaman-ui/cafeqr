@@ -7,10 +7,11 @@ import { CartBar } from "@/components/CartBar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { ItemCard } from "@/components/ItemCard";
 import { OptionsSheet } from "@/components/OptionsSheet";
-import { Chip, Loading, useCols } from "@/components/ui";
+import { Chip, Empty, Loading, useCols } from "@/components/ui";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { cartTotals, padTable, tableLabel } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { hapticLight } from "@/lib/haptics";
 import { colors } from "@/lib/theme";
 import type { DietaryFilter, MenuItem, MilkOption } from "@/lib/types";
 
@@ -48,7 +49,7 @@ export default function CafeTableMenu() {
 
   const welcomed = guest.welcomedTables.includes(`${slug}:${table}`);
   const accent = cafe.accentColor || colors.gold;
-  const totals = cartTotals(cart, items);
+  const totals = cartTotals(cart, items, cafe.currency || "USD");
   const letter = (cafe.name[0] || "C").toUpperCase();
   const cur = cafe.currency || "USD";
 
@@ -64,7 +65,7 @@ export default function CafeTableMenu() {
     if (!line) {
       if (dir > 0) {
         if (item.hasMilk || item.hasExtraShot) setSheet(item);
-        else addToCart(item.id, {}, table);
+        else { void hapticLight(); addToCart(item.id, {}, table); }
       }
       return;
     }
@@ -138,7 +139,7 @@ export default function CafeTableMenu() {
             {(["all", "veg", "vegan", "gf"] as DietaryFilter[]).map((d) => (
               <Chip
                 key={d}
-                label={d === "all" ? "All" : d === "veg" ? "Vegetarian" : d === "vegan" ? "Vegan" : "Gluten-Free"}
+                label={d === "all" ? "All" : d === "veg" ? "Veg" : d === "vegan" ? "Vegan" : "GF"}
                 active={diet === d}
                 onPress={() => setDiet(d)}
               />
@@ -154,6 +155,10 @@ export default function CafeTableMenu() {
           <Text style={styles.bannerSub}>{cafe.tagline}</Text>
         </View>
 
+        {!visible.length ? (
+          <Empty title="Nothing here" body="Try another category or dietary filter — or ask staff to update the menu." />
+        ) : null}
+
         <View style={styles.grid}>
           {visible.map((item) => {
             const catName = categories.find((c) => c.id === item.categoryId)?.name || "";
@@ -168,7 +173,7 @@ export default function CafeTableMenu() {
                   onOpen={() => setSheet(item)}
                   onAdd={() => {
                     if (item.hasMilk || item.hasExtraShot) setSheet(item);
-                    else addToCart(item.id, {}, table);
+                    else { void hapticLight(); addToCart(item.id, {}, table); }
                   }}
                   onInc={() => bump(item, 1)}
                   onDec={() => bump(item, -1)}
@@ -201,11 +206,12 @@ export default function CafeTableMenu() {
         onAdd={(opts: { milk?: MilkOption; extraShot?: boolean }, qty: number) => {
           const id = sheet?.id;
           if (!id) return;
+          void hapticLight();
           for (let i = 0; i < qty; i++) addToCart(id, opts, table);
           setSheet(null);
         }}
       />
-      <CartDrawer open={bag} onClose={() => setBag(false)} />
+      <CartDrawer open={bag} onClose={() => setBag(false)} table={table} />
     </SafeAreaView>
   );
 }
@@ -231,7 +237,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: colors.bg,
-    borderBottomWidth: 1.5,
+    borderBottomWidth: 1,
     borderColor: colors.ink,
   },
   logo: { width: 40, height: 40, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
@@ -239,7 +245,7 @@ const styles = StyleSheet.create({
   cafe: { fontSize: 14, fontWeight: "800", letterSpacing: 0.6, color: colors.ink },
   addr: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: colors.muted, marginTop: 3 },
   tableChip: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.ink,
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -247,7 +253,7 @@ const styles = StyleSheet.create({
   },
   tableChipTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.ink },
   bagBtn: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.ink,
     backgroundColor: colors.white,
     paddingHorizontal: 10,
@@ -260,10 +266,10 @@ const styles = StyleSheet.create({
   bagTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: colors.ink },
   bagBadge: { minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   bagBadgeTxt: { fontSize: 10, fontWeight: "800", color: colors.ink },
-  sticky: { backgroundColor: colors.bg, borderBottomWidth: 1.5, borderColor: colors.ink, paddingTop: 10 },
+  sticky: { backgroundColor: colors.bg, borderBottomWidth: 1, borderColor: colors.ink, paddingTop: 10 },
   chips: { paddingHorizontal: 16, paddingBottom: 4, alignItems: "center" },
   banner: { paddingHorizontal: 16, paddingVertical: 20, gap: 8 },
-  pop: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5, borderColor: colors.ink },
+  pop: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.ink },
   popTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1.6, color: colors.ink },
   bannerTitle: { fontSize: 26, fontWeight: "800", letterSpacing: 0.6, color: colors.ink },
   bannerSub: { fontSize: 14, color: colors.muted },

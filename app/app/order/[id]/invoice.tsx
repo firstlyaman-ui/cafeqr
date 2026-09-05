@@ -1,0 +1,167 @@
+import { useLocalSearchParams } from "expo-router";
+import React from "react";
+import { Platform, Share, StyleSheet, Text, View } from "react-native";
+
+import { Btn, Loading, Screen } from "@/components/ui";
+import { money, optionBlurb, tableLabel } from "@/lib/format";
+import { hapticMedium } from "@/lib/haptics";
+import { useStore } from "@/lib/store";
+import { borderWidth, colors, radius } from "@/lib/theme";
+
+function formatStamp(ts: number) {
+  try {
+    return new Date(ts).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(ts);
+  }
+}
+
+export default function OrderInvoice() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { orders, cafe, ready } = useStore();
+  const cur = cafe.currency || "USD";
+  const order = orders.find((o) => o.id === id);
+
+  if (!ready) return <Loading />;
+  if (!order) {
+    return (
+      <Screen maxWidth={560}>
+        <Text style={styles.h}>Receipt not found</Text>
+        <Text style={styles.sub}>Open this from a placed order on this device.</Text>
+        <Btn label="Back" href="/" variant="outline" />
+      </Screen>
+    );
+  }
+
+  const printOrShare = async () => {
+    void hapticMedium();
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.print();
+      return;
+    }
+    const lines = [
+      cafe.name,
+      `Order ${order.id}`,
+      tableLabel(order.table),
+      `Guest: ${order.guestName}`,
+      "",
+      ...order.items.map((l) => {
+        const extra = optionBlurb(l.milk, l.extraShot);
+        return `${l.qty}× ${l.name}${extra ? ` (${extra})` : ""}  ${money(l.unitPrice * l.qty, cur)}`;
+      }),
+      "",
+      `Subtotal  ${money(order.subtotal, cur)}`,
+      `Tax  ${money(order.tax, cur)}`,
+      `Total  ${money(order.total, cur)}`,
+      order.payCash ? "Cash due at counter" : "Pay when collecting",
+      formatStamp(order.createdAt),
+    ];
+    try {
+      await Share.share({ message: lines.join("\n"), title: `CafeQR ${order.id}` });
+    } catch {
+      /* user cancelled */
+    }
+  };
+
+  return (
+    <Screen maxWidth={560}>
+      <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)} style={{ marginBottom: 16, gap: 10 }}>
+        <Text style={styles.k}>Receipt</Text>
+        <Text style={styles.h}>Order invoice</Text>
+        <Btn label={Platform.OS === "web" ? "Print" : "Share / print"} onPress={() => void printOrShare()} variant="gold" />
+        <Btn label="Back to order" href={`/order/${order.id}` as any} variant="outline" />
+      </View>
+
+      <View style={styles.receipt} accessibilityLabel="Printable receipt">
+        <Text style={styles.cafe}>{cafe.name}</Text>
+        <Text style={styles.tag}>{cafe.tagline || "Cash · table QR ordering"}</Text>
+        <View style={styles.rule} />
+        <Row k="Order" v={order.id} bold />
+        <Row k="Table" v={tableLabel(order.table)} />
+        <Row k="Guest" v={order.guestName} />
+        <Row k="When" v={formatStamp(order.createdAt)} />
+        <View style={styles.rule} />
+        {order.items.map((line, i) => {
+          const extra = optionBlurb(line.milk, line.extraShot);
+          return (
+            <View key={`${line.itemId}-${i}`} style={styles.line}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lineName}>
+                  {line.qty}× {line.name}
+                </Text>
+                {extra ? <Text style={styles.extra}>{extra}</Text> : null}
+              </View>
+              <Text style={styles.lineAmt}>{money(line.unitPrice * line.qty, cur)}</Text>
+            </View>
+          );
+        })}
+        {order.notes ? (
+          <Text style={styles.notes}>Note: {order.notes}</Text>
+        ) : null}
+        <View style={styles.rule} />
+        <Row k="Subtotal" v={money(order.subtotal, cur)} />
+        <Row k="Tax" v={money(order.tax, cur)} />
+        <Row k="Total" v={money(order.total, cur)} bold />
+        <View style={[styles.dueBox, { marginTop: 12 }]}>
+          <Text style={styles.dueLbl}>{order.payCash ? "CASH DUE" : "AMOUNT DUE"}</Text>
+          <Text style={styles.dueAmt}>{money(order.total, cur)}</Text>
+        </View>
+        <Text style={styles.foot}>Thank you · pay at the counter when you collect</Text>
+      </View>
+    </Screen>
+  );
+}
+
+function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
+  return (
+    <View style={styles.row}>
+      <Text style={[styles.rk, bold && styles.bold]}>{k}</Text>
+      <Text style={[styles.rv, bold && styles.bold]}>{v}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
+  h: { fontSize: 26, fontWeight: "800", color: colors.ink, marginTop: 4 },
+  sub: { color: colors.muted, marginVertical: 12, lineHeight: 20 },
+  receipt: {
+    backgroundColor: colors.white,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 22,
+    marginBottom: 40,
+  },
+  cafe: { fontSize: 22, fontWeight: "800", textAlign: "center", color: colors.ink, letterSpacing: 0.4 },
+  tag: { textAlign: "center", color: colors.muted, marginTop: 4, marginBottom: 8, fontSize: 13 },
+  rule: { height: 1, backgroundColor: colors.line, marginVertical: 12 },
+  row: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 6 },
+  rk: { color: colors.muted, fontSize: 14 },
+  rv: { color: colors.ink, fontSize: 14, fontWeight: "600", textAlign: "right", flexShrink: 1 },
+  bold: { fontWeight: "800", color: colors.ink },
+  line: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 10 },
+  lineName: { fontWeight: "700", color: colors.ink, fontSize: 14 },
+  extra: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  lineAmt: { fontWeight: "800", color: colors.ink },
+  notes: { color: colors.muted, fontStyle: "italic", marginTop: 4, fontSize: 13 },
+  dueBox: {
+    borderWidth,
+    borderColor: colors.ink,
+    borderRadius: radius,
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.goldSoft,
+  },
+  dueLbl: { fontSize: 12, fontWeight: "800", letterSpacing: 1.4, color: colors.ink },
+  dueAmt: { fontSize: 24, fontWeight: "800", color: colors.ink },
+  foot: { textAlign: "center", color: colors.muted, marginTop: 18, fontSize: 12 },
+});

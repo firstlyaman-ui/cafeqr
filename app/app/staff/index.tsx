@@ -6,7 +6,8 @@ import { PinGate } from "@/components/PinGate";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { hapticMedium, hapticSuccess } from "@/lib/haptics";
+import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import { STAFF_PIN, type Order, type OrderStatus } from "@/lib/types";
 
 const FILTERS: (OrderStatus | "all")[] = ["all", "new", "preparing", "ready", "paid"];
@@ -45,7 +46,7 @@ function Ticket({
       {nxt ? (
         <Btn
           label={nextStatusLabel(order.status) || "Advance"}
-          onPress={() => onAdvance(order.id, nxt)}
+          onPress={() => { void hapticMedium(); onAdvance(order.id, nxt); }}
           variant={order.status === "ready" ? "gold" : "dark"}
         />
       ) : null}
@@ -110,7 +111,7 @@ export default function Staff() {
         hint={cafe.name || "Pass & tickets"}
         pin={STAFF_PIN}
         onCheck={(p) => verifyStaffPin(p)}
-        onOk={() => setStaffOk(true)}
+        onOk={() => { void hapticSuccess(); setStaffOk(true); }}
       />
     );
   }
@@ -201,16 +202,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1.6,
     color: colors.ink,
-    borderBottomWidth: 1.5,
-    borderColor: colors.ink,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
     paddingBottom: 8,
   },
   ticket: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    padding: 12,
-    gap: 6,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 14,
+    gap: 8,
+    ...shadow.card,
   },
   ticketTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   tid: { fontWeight: "800", letterSpacing: 1, color: colors.ink },

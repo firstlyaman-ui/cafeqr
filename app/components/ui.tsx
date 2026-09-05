@@ -14,7 +14,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { colors, type } from "@/lib/theme";
+import { borderWidth, colors, radius, shadow, type } from "@/lib/theme";
 
 export function Screen({
   children,
@@ -286,6 +286,23 @@ export function Toggle({
   );
 }
 
+
+export function Banner({
+  kind = "info",
+  children,
+}: {
+  kind?: "info" | "ok" | "err";
+  children: React.ReactNode;
+}) {
+  const bg = kind === "ok" ? "#E8F5EC" : kind === "err" ? "#FCEBEA" : colors.wash;
+  const fg = kind === "ok" ? colors.ready : kind === "err" ? colors.danger : colors.ink;
+  return (
+    <View style={[styles.banner, { backgroundColor: bg, borderColor: fg }]}>
+      <Text style={[styles.bannerTxt, { color: fg }]}>{children}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   wrap: { width: "100%", alignSelf: "center" },
@@ -299,8 +316,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
+    borderRadius: radius,
     flexDirection: "row",
     gap: 10,
   },
@@ -318,8 +336,9 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   input: {
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
     minHeight: 48,
     paddingHorizontal: 12,
     fontSize: 16,
@@ -329,8 +348,9 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 40,
     paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: 999,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
@@ -347,8 +367,9 @@ const styles = StyleSheet.create({
   tag: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: 6,
     backgroundColor: colors.white,
   },
   tagText: {
@@ -360,9 +381,11 @@ const styles = StyleSheet.create({
   },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, backgroundColor: colors.bg },
   empty: { padding: 28, alignItems: "center" },
-  hair: { height: 1.5, backgroundColor: colors.ink, width: "100%" },
+  hair: { height: 1, backgroundColor: colors.line, width: "100%" },
+  banner: { borderWidth, borderRadius: radius, paddingHorizontal: 14, paddingVertical: 12 },
+  bannerTxt: { fontSize: 13, fontWeight: "700", lineHeight: 18 },
   photo: { width: "100%", backgroundColor: colors.wash, overflow: "hidden" },
-  stepper: { flexDirection: "row", borderWidth: 1.5, borderColor: colors.ink, alignSelf: "flex-start" },
+  stepper: { flexDirection: "row", borderWidth, borderColor: colors.line, borderRadius: radius, overflow: "hidden", alignSelf: "flex-start" },
   stepBtn: {
     width: 36,
     height: 36,
@@ -377,9 +400,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.ink,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderColor: colors.ink,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.line,
   },
   stepQty: { color: colors.white, fontWeight: "800", fontSize: 13 },
   stepGlyph: { fontSize: 18, fontWeight: "700", color: colors.ink, marginTop: -1 },
@@ -389,8 +412,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
+    borderRadius: radius,
   },
   addTxt: {
     color: colors.white,
@@ -401,8 +425,9 @@ const styles = StyleSheet.create({
   toggle: {
     minHeight: 40,
     paddingHorizontal: 12,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: 999,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",

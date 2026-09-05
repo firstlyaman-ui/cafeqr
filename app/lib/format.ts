@@ -9,11 +9,36 @@ import {
 } from "./types";
 
 export function money(n: number, currency: string = "USD"): string {
+  const v = Number.isFinite(n) ? n : 0;
   if (currency === "INR") {
-    if (Number.isInteger(n)) return `₹${n}`;
-    return `₹${n.toFixed(2)}`;
+    if (Number.isInteger(v)) return `₹${v}`;
+    return `₹${v.toFixed(2)}`;
   }
-  return `$${n.toFixed(2)}`;
+  return `$${v.toFixed(2)}`;
+}
+
+/** Parse price / prep fields without NaN mid-edit. */
+export function parseMoneyInput(raw: string): number {
+  const cleaned = String(raw ?? "").replace(/[^0-9.]/g, "");
+  if (!cleaned || cleaned === ".") return 0;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+export function parseIntInput(raw: string, fallback = 0): number {
+  const n = parseInt(String(raw ?? "").replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? Math.max(0, n) : fallback;
+}
+
+export function isHttpUrl(url: string): boolean {
+  const s = String(url || "").trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function tableLabel(id: string): string {
@@ -32,20 +57,21 @@ export function lineUnitPrice(item: MenuItem, milk?: MilkOption, extraShot?: boo
   return p;
 }
 
-export function cartTotals(lines: CartLine[], items: MenuItem[]) {
+export function cartTotals(lines: CartLine[], items: MenuItem[], currency: string = "USD") {
   const subtotal = lines.reduce((sum, line) => {
     const item = items.find((i) => i.id === line.itemId);
     if (!item) return sum;
     return sum + lineUnitPrice(item, line.milk, line.extraShot) * line.qty;
   }, 0);
-  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-  const total = Math.round((subtotal + tax) * 100) / 100;
+  const roundedSub = Math.round(subtotal * 100) / 100;
+  const tax = currency === "INR" ? 0 : Math.round(roundedSub * TAX_RATE * 100) / 100;
+  const total = Math.round((roundedSub + tax) * 100) / 100;
   const count = lines.reduce((n, l) => n + l.qty, 0);
   const wait = lines.reduce((max, line) => {
     const item = items.find((i) => i.id === line.itemId);
     return Math.max(max, item ? item.prepMinutes : 0);
   }, 0);
-  return { subtotal: Math.round(subtotal * 100) / 100, tax, total, count, wait };
+  return { subtotal: roundedSub, tax, total, count, wait };
 }
 
 export function optionBlurb(milk?: MilkOption, extraShot?: boolean): string {

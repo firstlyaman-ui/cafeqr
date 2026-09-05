@@ -3,7 +3,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 
 import { Photo, Stepper } from "@/components/ui";
 import { money } from "@/lib/format";
-import { colors, type } from "@/lib/theme";
+import { hapticLight } from "@/lib/haptics";
+import { borderWidth, colors, radius, type } from "@/lib/theme";
 import { ALT_MILK_PRICE, EXTRA_SHOT_PRICE, type MenuItem, type MilkOption } from "@/lib/types";
 
 function Inner({
@@ -90,15 +91,16 @@ function Inner({
           onInc={() => setQty((q) => q + 1)}
         />
         <Pressable
-          onPress={() =>
+          onPress={() => {
+            void hapticLight();
             onAdd(
               {
                 milk: item.hasMilk ? milk : undefined,
                 extraShot: item.hasExtraShot ? shot : undefined,
               },
               qty,
-            )
-          }
+            );
+          }}
           style={styles.addOrder}
           accessibilityRole="button"
           accessibilityLabel="Add to order"
@@ -148,8 +150,9 @@ const styles = StyleSheet.create({
   center: { width: "100%", maxWidth: 460 },
   sheet: {
     backgroundColor: colors.bg,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
     overflow: "hidden",
   },
   close: {
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
     bottom: 12,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   prepTxt: {
@@ -201,7 +204,7 @@ const styles = StyleSheet.create({
   opt: {
     minHeight: 44,
     paddingHorizontal: 12,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
     justifyContent: "center",
     backgroundColor: colors.white,
@@ -210,7 +213,7 @@ const styles = StyleSheet.create({
   shot: {
     marginTop: 16,
     minHeight: 52,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
     paddingHorizontal: 14,
     flexDirection: "row",
@@ -223,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     padding: 14,
-    borderTopWidth: 1.5,
+    borderTopWidth: 1,
     borderColor: colors.ink,
     backgroundColor: colors.bg,
   },
@@ -236,7 +239,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingLeft: 14,
     paddingRight: 6,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   addOrderTxt: {

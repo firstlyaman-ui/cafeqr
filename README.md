@@ -98,3 +98,10 @@ Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
 
 
 **Caveat:** serverless SQLite under `/tmp` is not durable across instances/cold starts. Fine for demos; use a hosted DB for production.
+
+## Product notes
+
+- Owner menu CRUD talks to the API with PIN auth; failed saves show inline errors (no silent failures).
+- Printable receipt at `/order/<id>/invoice` (`window.print` on web).
+- Haptics via `expo-haptics` on native (add-to-cart, place order, PIN, staff status); no-op on web.
+- Soft visual refresh: lighter borders, rounded cards, ink/cream/amber palette kept.

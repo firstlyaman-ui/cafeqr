@@ -1,11 +1,10 @@
-# CafeQR
+# CafeQR (Expo app)
 
-Multi-cafe QR ordering demo.
+Multi-cafe QR ordering — guest menu, bag/checkout, staff board, owner setup.
 
-Start the API project under cafeqr-api, then Expo web in cafeqr.
-Guest paths: /c/<slug>/t/<table>. Legacy /t/<n> redirects to the default demo cafe.
-Owner and staff screens take ?slug=. QR codes use cafe-specific paths.
-Hybrid: prefers live API, falls back to local seed.
+- Guest: `/c/<slug>/t/<table>`
+- Receipt: `/order/<id>/invoice` (print on web)
+- Owner / staff: `/owner?slug=…`, `/staff?slug=…` (PIN `1234`)
+- Prefers live API via `EXPO_PUBLIC_API_URL`; falls back to local seed
 
-Examples: /c/velvet-bean/t/04 and /c/spice-lane/t/03
-Demo access code: 1234 for owner and staff.
+See monorepo root README for API + deploy.

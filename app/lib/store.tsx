@@ -25,6 +25,15 @@ import type {
 } from "./types";
 import { OWNER_PIN, STAFF_PIN } from "./types";
 
+export type StoreResult = { ok: true } | { ok: false; error: string };
+
+function errMsg(e: unknown, fallback = "Request failed"): string {
+  if (e && typeof e === "object" && "message" in e && typeof (e as any).message === "string") {
+    return (e as any).message || fallback;
+  }
+  return fallback;
+}
+
 const KEY = "cafeqr-v2";
 const DEFAULT_SLUG = "velvet-bean";
 
@@ -137,12 +146,12 @@ interface Store extends Persist {
   loadCafe: (slug: string) => Promise<void>;
   refreshOrders: () => Promise<void>;
   refreshCafeList: () => Promise<void>;
-  saveCafe: (p: Partial<CafeProfile>) => Promise<void>;
-  addCategory: (name: string) => Promise<void>;
-  renameCategory: (id: string, name: string) => Promise<void>;
-  deleteCategory: (id: string) => Promise<void>;
-  upsertItem: (item: MenuItem) => Promise<void>;
-  deleteItem: (id: string) => Promise<void>;
+  saveCafe: (p: Partial<CafeProfile>) => Promise<StoreResult>;
+  addCategory: (name: string) => Promise<StoreResult>;
+  renameCategory: (id: string, name: string) => Promise<StoreResult>;
+  deleteCategory: (id: string) => Promise<StoreResult>;
+  upsertItem: (item: MenuItem) => Promise<StoreResult>;
+  deleteItem: (id: string) => Promise<StoreResult>;
   restoreDemo: () => void;
   markWelcomed: (table: string) => void;
   setGuest: (g: Partial<GuestSession>) => void;
@@ -314,61 +323,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => fn(s));
   }, []);
 
+  const renameTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   const saveCafe = useCallback(
-    async (p: Partial<CafeProfile>) => {
+    async (p: Partial<CafeProfile>): Promise<StoreResult> => {
       const s = stateRef.current;
       const next = { ...s.cafe, ...p };
       setState((prev) => ({ ...prev, cafe: next }));
       if (apiOnlineRef.current) {
         try {
           await api.patchCafe(s.cafeSlug, p, ownerPinRef.current);
+          return { ok: true };
         } catch (e) {
           console.warn("[cafeqr] saveCafe API failed", e);
+          return { ok: false, error: errMsg(e, "Could not save café profile") };
         }
       }
+      return { ok: true };
     },
     [],
   );
 
-  const addCategory = useCallback(async (name: string) => {
+  const addCategory = useCallback(async (name: string): Promise<StoreResult> => {
+    const trimmed = name.trim();
+    if (!trimmed) return { ok: false, error: "Category name is required" };
     const s = stateRef.current;
     if (apiOnlineRef.current) {
       try {
-        const cat = (await api.postCategory(s.cafeSlug, name.trim() || "New category", ownerPinRef.current)) as MenuCategory;
+        const cat = (await api.postCategory(s.cafeSlug, trimmed, ownerPinRef.current)) as MenuCategory;
         setState((prev) => ({ ...prev, categories: [...prev.categories, cat] }));
-        return;
+        return { ok: true };
       } catch (e) {
         console.warn(e);
+        return { ok: false, error: errMsg(e, "Could not add category") };
       }
     }
     patch((prev) => ({
       ...prev,
       categories: [
         ...prev.categories,
-        { id: nid("cat"), name: name.trim() || "New category", sort: prev.categories.length + 1 },
+        { id: nid("cat"), name: trimmed, sort: prev.categories.length + 1 },
       ],
     }));
+    return { ok: true };
   }, [patch]);
 
   const renameCategory = useCallback(
-    async (id: string, name: string) => {
+    async (id: string, name: string): Promise<StoreResult> => {
+      const trimmed = name;
       patch((s) => ({
         ...s,
-        categories: s.categories.map((c) => (c.id === id ? { ...c, name } : c)),
+        categories: s.categories.map((c) => (c.id === id ? { ...c, name: trimmed } : c)),
       }));
-      if (apiOnlineRef.current) {
-        try {
-          await api.patchCategory(stateRef.current.cafeSlug, id, { name }, ownerPinRef.current);
-        } catch (e) {
-          console.warn(e);
-        }
-      }
+      if (!apiOnlineRef.current) return { ok: true };
+      const prev = renameTimers.current[id];
+      if (prev) clearTimeout(prev);
+      return await new Promise<StoreResult>((resolve) => {
+        renameTimers.current[id] = setTimeout(async () => {
+          try {
+            await api.patchCategory(stateRef.current.cafeSlug, id, { name: trimmed.trim() || "Category" }, ownerPinRef.current);
+            resolve({ ok: true });
+          } catch (e) {
+            console.warn(e);
+            resolve({ ok: false, error: errMsg(e, "Could not rename category") });
+          }
+        }, 450);
+      });
     },
     [patch],
   );
 
   const deleteCategory = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<StoreResult> => {
+      const snap = stateRef.current;
+      const removedCats = snap.categories.filter((c) => c.id === id);
+      const removedItems = snap.items.filter((i) => i.categoryId === id);
       patch((s) => ({
         ...s,
         categories: s.categories.filter((c) => c.id !== id),
@@ -377,47 +406,100 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (apiOnlineRef.current) {
         try {
           await api.deleteCategory(stateRef.current.cafeSlug, id, ownerPinRef.current);
+          return { ok: true };
         } catch (e) {
           console.warn(e);
+          // restore on failure
+          setState((s) => ({
+            ...s,
+            categories: [...s.categories, ...removedCats].sort((a, b) => a.sort - b.sort),
+            items: [...s.items, ...removedItems],
+          }));
+          return { ok: false, error: errMsg(e, "Could not delete category") };
         }
       }
+      return { ok: true };
     },
     [patch],
   );
 
   const upsertItem = useCallback(
-    async (item: MenuItem) => {
+    async (item: MenuItem): Promise<StoreResult> => {
+      if (!item.name.trim()) return { ok: false, error: "Item name is required" };
+      if (!item.categoryId) return { ok: false, error: "Pick a category" };
+      const price = Number(item.price);
+      if (!Number.isFinite(price) || price < 0) return { ok: false, error: "Enter a valid price" };
+      const prep = Number(item.prepMinutes);
+      if (!Number.isFinite(prep) || prep < 0) return { ok: false, error: "Enter valid prep minutes" };
+      const clean: MenuItem = {
+        ...item,
+        name: item.name.trim(),
+        price,
+        prepMinutes: prep || 5,
+        image: (item.image || "").trim(),
+        tags: Array.isArray(item.tags) ? item.tags : [],
+      };
       const s = stateRef.current;
-      const exists = s.items.some((i) => i.id === item.id);
+      const exists = s.items.some((i) => i.id === clean.id);
+      // optimistic
       patch((prev) => ({
         ...prev,
-        items: exists ? prev.items.map((i) => (i.id === item.id ? item : i)) : [...prev.items, item],
+        items: exists ? prev.items.map((i) => (i.id === clean.id ? clean : i)) : [...prev.items, clean],
       }));
       if (apiOnlineRef.current) {
         try {
           if (exists) {
-            await api.patchItem(s.cafeSlug, item.id, { ...item }, ownerPinRef.current);
+            const updated = await api.patchItem(s.cafeSlug, clean.id, { ...clean }, ownerPinRef.current);
+            const mapped = mapApiItem(updated as any);
+            setState((prev) => ({
+              ...prev,
+              items: prev.items.map((i) => (i.id === clean.id ? mapped : i)),
+            }));
           } else {
-            await api.postItem(s.cafeSlug, { ...item }, ownerPinRef.current);
+            const created = await api.postItem(s.cafeSlug, { ...clean }, ownerPinRef.current);
+            const mapped = mapApiItem(created as any);
+            setState((prev) => ({
+              ...prev,
+              items: prev.items.some((i) => i.id === clean.id)
+                ? prev.items.map((i) => (i.id === clean.id ? mapped : i))
+                : [...prev.items.filter((i) => i.id !== clean.id), mapped],
+            }));
           }
+          return { ok: true };
         } catch (e) {
           console.warn(e);
+          // reload to avoid stale optimistic state
+          try {
+            await loadCafe(s.cafeSlug);
+          } catch {
+            /* ignore */
+          }
+          return { ok: false, error: errMsg(e, "Could not save item") };
         }
       }
+      return { ok: true };
     },
-    [patch],
+    [patch, loadCafe],
   );
 
   const deleteItem = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<StoreResult> => {
+      const snap = stateRef.current;
+      const removed = snap.items.find((i) => i.id === id);
       patch((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) }));
       if (apiOnlineRef.current) {
         try {
           await api.deleteItem(stateRef.current.cafeSlug, id, ownerPinRef.current);
+          return { ok: true };
         } catch (e) {
           console.warn(e);
+          if (removed) {
+            setState((s) => ({ ...s, items: [...s.items, removed] }));
+          }
+          return { ok: false, error: errMsg(e, "Could not delete item") };
         }
       }
+      return { ok: true };
     },
     [patch],
   );
@@ -501,7 +583,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (input: { table: string; guestName: string; phone: string; notes: string }) => {
       const s = stateRef.current;
       if (!s.cart.length) return null;
-      const totals = cartTotals(s.cart, s.items);
+      const totals = cartTotals(s.cart, s.items, s.cafe.currency);
       const items = s.cart
         .map((line) => {
           const item = s.items.find((i) => i.id === line.itemId);

@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { money, waitCopy } from "@/lib/format";
-import { colors } from "@/lib/theme";
+import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 
 export function CartBar({
   count,
@@ -66,10 +66,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     backgroundColor: colors.ink,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
+    borderRadius: radius,
     padding: 8,
     paddingRight: 8,
+    ...shadow.hard,
   },
   count: {
     width: 44,
@@ -77,7 +79,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   countTxt: { fontSize: 18, fontWeight: "800", color: colors.ink },
@@ -92,7 +94,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grayBtn,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   viewTxt: { color: colors.white, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
@@ -102,7 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
   },
   outTxt: { color: colors.ink, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },

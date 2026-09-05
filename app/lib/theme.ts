@@ -1,9 +1,9 @@
 export const colors = {
-  bg: "#F5F4F0",
+  bg: "#F7F6F2",
   ink: "#1D1D1B",
   muted: "#6B6B63",
   faint: "#9A9A90",
-  line: "#1D1D1B",
+  line: "#E2E0D8",
   wash: "#EDEBE4",
   gold: "#E8B62C",
   goldSoft: "#F8E7B0",
@@ -12,7 +12,7 @@ export const colors = {
   danger: "#B42318",
   ready: "#2F6B3C",
   white: "#FFFFFF",
-  overlay: "rgba(29,29,27,0.48)",
+  overlay: "rgba(29,29,27,0.42)",
 };
 
 export const space = {
@@ -54,21 +54,23 @@ export const type = {
   },
 };
 
+/** Soft elevation — Square/Toast-like, not hard brutalist offset */
 export const shadow = {
   card: {
     shadowColor: "#1D1D1B",
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 4, height: 4 },
-    elevation: 0,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   hard: {
     shadowColor: "#1D1D1B",
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    shadowOffset: { width: 6, height: 6 },
-    elevation: 0,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
 };
 
-export const radius = 2;
+export const radius = 10;
+export const borderWidth = 1;

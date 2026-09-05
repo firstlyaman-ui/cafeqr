@@ -290,6 +290,7 @@ async function createApp() {
     const id = b.id || nid("item");
     const categoryId = b.categoryId || b.category_id;
     if (!categoryId) return res.status(400).json({ error: "categoryId required" });
+    if (!(b.name || "").toString().trim()) return res.status(400).json({ error: "name required" });
     const cat = db.prepare("SELECT id FROM categories WHERE id = ? AND cafe_id = ?").get(categoryId, cafe.id);
     if (!cat) return res.status(400).json({ error: "Invalid category" });
     db.prepare(
@@ -301,8 +302,8 @@ async function createApp() {
       categoryId,
       (b.name || "Untitled").trim(),
       b.description || "",
-      Number(b.price) || 0,
-      Number(b.prepMinutes ?? b.prep_minutes) || 5,
+      Number.isFinite(Number(b.price)) ? Math.max(0, Number(b.price)) : 0,
+      Number.isFinite(Number(b.prepMinutes ?? b.prep_minutes)) ? Math.max(0, Number(b.prepMinutes ?? b.prep_minutes)) : 5,
       JSON.stringify(b.tags || []),
       b.image || "",
       b.hasMilk || b.has_milk ? 1 : 0,
@@ -320,7 +321,11 @@ async function createApp() {
     if (!row) return res.status(404).json({ error: "Item not found" });
     const b = req.body || {};
     const categoryId = b.categoryId !== undefined ? b.categoryId : b.category_id !== undefined ? b.category_id : row.category_id;
-    const tags = b.tags !== undefined ? JSON.stringify(b.tags) : row.tags;
+    if (categoryId !== row.category_id) {
+      const cat = db.prepare("SELECT id FROM categories WHERE id = ? AND cafe_id = ?").get(categoryId, cafe.id);
+      if (!cat) return res.status(400).json({ error: "Invalid category" });
+    }
+    const tags = b.tags !== undefined ? JSON.stringify(Array.isArray(b.tags) ? b.tags : []) : row.tags;
     db.prepare(
       `UPDATE items SET
         category_id = ?, name = ?, description = ?, price = ?, prep_minutes = ?,
@@ -328,10 +333,14 @@ async function createApp() {
        WHERE id = ?`
     ).run(
       categoryId,
-      b.name !== undefined ? String(b.name) : row.name,
+      b.name !== undefined ? String(b.name).trim() || row.name : row.name,
       b.description !== undefined ? String(b.description) : row.description,
-      b.price !== undefined ? Number(b.price) : row.price,
-      b.prepMinutes !== undefined ? Number(b.prepMinutes) : b.prep_minutes !== undefined ? Number(b.prep_minutes) : row.prep_minutes,
+      b.price !== undefined && Number.isFinite(Number(b.price)) ? Math.max(0, Number(b.price)) : row.price,
+      b.prepMinutes !== undefined && Number.isFinite(Number(b.prepMinutes))
+        ? Math.max(0, Number(b.prepMinutes))
+        : b.prep_minutes !== undefined && Number.isFinite(Number(b.prep_minutes))
+          ? Math.max(0, Number(b.prep_minutes))
+          : row.prep_minutes,
       tags,
       b.image !== undefined ? String(b.image) : row.image,
       b.hasMilk !== undefined ? (b.hasMilk ? 1 : 0) : b.has_milk !== undefined ? (b.has_milk ? 1 : 0) : row.has_milk,

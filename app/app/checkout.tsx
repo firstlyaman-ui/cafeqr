@@ -5,7 +5,8 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-na
 import { Btn, Field, Loading, Screen } from "@/components/ui";
 import { cartTotals, lineUnitPrice, money, optionBlurb, padTable, tableLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { hapticError, hapticSuccess } from "@/lib/haptics";
+import { borderWidth, colors, radius } from "@/lib/theme";
 import { TAX_RATE } from "@/lib/types";
 
 export default function Checkout() {
@@ -17,7 +18,7 @@ export default function Checkout() {
   const [notes, setNotes] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const totals = cartTotals(cart, items);
+  const totals = cartTotals(cart, items, cafe.currency || "USD");
   const cur = cafe.currency || "USD";
 
   if (!ready) return <Loading />;
@@ -37,12 +38,15 @@ export default function Checkout() {
         notes,
       });
       if (!order) {
-        setErr("Could not place order.");
+        setErr("Could not place order. Check your connection and try again.");
+        void hapticError();
         return;
       }
+      void hapticSuccess();
       router.replace(`/order/${order.id}` as any);
     } catch (e) {
-      setErr("Could not place order.");
+      setErr("Could not place order. Check your connection and try again.");
+      void hapticError();
     } finally {
       setBusy(false);
     }
@@ -98,10 +102,12 @@ export default function Checkout() {
             <Text style={styles.muted}>Subtotal</Text>
             <Text>{money(totals.subtotal, cur)}</Text>
           </View>
-          <View style={styles.row}>
-            <Text style={styles.muted}>Tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
-            <Text>{money(totals.tax, cur)}</Text>
-          </View>
+          {cur === "INR" ? null : (
+            <View style={styles.row}>
+              <Text style={styles.muted}>Tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
+              <Text>{money(totals.tax, cur)}</Text>
+            </View>
+          )}
           <View style={styles.row}>
             <Text style={styles.due}>TOTAL DUE (CASH)</Text>
             <Text style={styles.dueAmt}>{money(totals.total, cur)}</Text>
@@ -131,8 +137,9 @@ const styles = StyleSheet.create({
   sub: { color: colors.muted, marginTop: 8, marginBottom: 22, lineHeight: 22 },
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
     padding: 16,
     gap: 12,
     marginBottom: 16,
@@ -147,8 +154,8 @@ const styles = StyleSheet.create({
   wait: { color: colors.muted, fontSize: 12, fontWeight: "700" },
   cash: {
     backgroundColor: colors.goldSoft,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
     padding: 12,
     marginBottom: 16,
   },

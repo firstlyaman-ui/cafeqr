@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingVertical: 32,
     paddingHorizontal: 24,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.ink,
   },
   icon: {
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   phoneRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.ink,
     minHeight: 48,
     paddingHorizontal: 12,

@@ -1,17 +1,31 @@
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
-import { Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/ui";
+import { Banner, Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/ui";
 import { tableUrlFor } from "@/lib/api";
-import { money } from "@/lib/format";
+import { isHttpUrl, money, parseIntInput, parseMoneyInput } from "@/lib/format";
+import { hapticError, hapticSuccess } from "@/lib/haptics";
 import { qrDataUri } from "@/lib/qr";
 import { emptyItem, useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import { OWNER_PIN, type DietaryTag, type MenuItem } from "@/lib/types";
 
 const TAGS: DietaryTag[] = ["popular", "veg", "vegan", "gf"];
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80";
+
+type Draft = MenuItem & { priceStr: string; prepStr: string };
+
+function toDraft(item: MenuItem): Draft {
+  return {
+    ...item,
+    tags: [...item.tags],
+    priceStr: Number.isFinite(item.price) ? String(item.price) : "",
+    prepStr: Number.isFinite(item.prepMinutes) ? String(item.prepMinutes) : "5",
+  };
+}
 
 export default function Owner() {
   const params = useLocalSearchParams<{ slug?: string }>();
@@ -47,8 +61,16 @@ export default function Owner() {
   const [cash, setCash] = useState(cafe.cashOnly);
   const [accent, setAccent] = useState(cafe.accentColor);
   const [catName, setCatName] = useState("");
-  const [editing, setEditing] = useState<MenuItem | null>(null);
-  const [saved, setSaved] = useState("");
+  const [editing, setEditing] = useState<Draft | null>(null);
+  const [flash, setFlash] = useState<{ kind: "ok" | "err" | "info"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState("");
+
+  const flashMsg = (kind: "ok" | "err" | "info", text: string) => {
+    setFlash({ kind, text });
+    if (kind === "ok") void hapticSuccess();
+    if (kind === "err") void hapticError();
+  };
 
   useEffect(() => {
     void refreshCafeList();
@@ -72,6 +94,10 @@ export default function Owner() {
 
   const sortedCats = useMemo(() => categories.slice().sort((a, b) => a.sort - b.sort), [categories]);
   const cur = cafe.currency || "USD";
+  const orphanItems = useMemo(
+    () => items.filter((i) => !categories.some((c) => c.id === i.categoryId)),
+    [items, categories],
+  );
 
   if (!ready) return <Loading />;
   if (!ownerOk) {
@@ -80,7 +106,12 @@ export default function Owner() {
         title="Owner setup"
         hint={cafe.name || "Café console"}
         pin={OWNER_PIN}
-        onCheck={(p) => verifyOwnerPin(p)}
+        onCheck={async (p) => {
+          const ok = await verifyOwnerPin(p);
+          if (ok) void hapticSuccess();
+          else void hapticError();
+          return ok;
+        }}
         onOk={() => setOwnerOk(true)}
       />
     );
@@ -89,37 +120,131 @@ export default function Owner() {
   const switchCafe = async (slug: string) => {
     setPicked(slug);
     setOwnerOk(false);
+    setEditing(null);
+    setFlash(null);
     await loadCafe(slug);
   };
 
   const saveProfile = async () => {
-    await saveCafe({
-      name: name.trim() || cafe.name,
-      tagline,
-      hours,
-      address,
-      accentColor: accent,
-      tableCount: Math.max(1, Math.min(24, parseInt(tables, 10) || 1)),
-      cashOnly: cash,
-    });
-    setSaved(apiOnline ? "Café profile saved to API." : "Café profile saved locally (API offline).");
+    setBusy(true);
+    try {
+      const r = await saveCafe({
+        name: name.trim() || cafe.name,
+        tagline,
+        hours,
+        address,
+        accentColor: accent,
+        tableCount: Math.max(1, Math.min(24, parseIntInput(tables, 1) || 1)),
+        cashOnly: cash,
+      });
+      if (r.ok) flashMsg("ok", apiOnline ? "Café profile saved." : "Saved locally (API offline).");
+      else flashMsg("err", r.error);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const startNew = () => {
-    const cat = sortedCats[0]?.id || "coffee";
-    setEditing(emptyItem(cat));
+    const cat = sortedCats[0]?.id;
+    if (!cat) {
+      flashMsg("err", "Add a category before creating items.");
+      return;
+    }
+    setFormErr("");
+    setEditing(toDraft(emptyItem(cat)));
   };
 
   const saveItem = async () => {
     if (!editing) return;
-    if (!editing.name.trim()) return;
-    await upsertItem({
-      ...editing,
-      name: editing.name.trim(),
-      price: Number(editing.price) || 0,
-      prepMinutes: Number(editing.prepMinutes) || 5,
-    });
-    setEditing(null);
+    const trimmed = editing.name.trim();
+    if (!trimmed) {
+      setFormErr("Name is required.");
+      void hapticError();
+      return;
+    }
+    if (!editing.categoryId) {
+      setFormErr("Pick a category.");
+      void hapticError();
+      return;
+    }
+    const price = parseMoneyInput(editing.priceStr);
+    const prep = parseIntInput(editing.prepStr, 5) || 5;
+    const image = (editing.image || "").trim() || DEFAULT_IMAGE;
+    if (editing.image.trim() && !isHttpUrl(image)) {
+      setFormErr("Photo URL must start with http:// or https://");
+      void hapticError();
+      return;
+    }
+    setBusy(true);
+    setFormErr("");
+    try {
+      const r = await upsertItem({
+        ...editing,
+        name: trimmed,
+        price,
+        prepMinutes: prep,
+        image,
+      });
+      if (r.ok) {
+        setEditing(null);
+        flashMsg("ok", "Item saved.");
+      } else {
+        setFormErr(r.error);
+        flashMsg("err", r.error);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDeleteCategory = (id: string, label: string) => {
+    const count = items.filter((i) => i.categoryId === id).length;
+    const msg = count
+      ? `Delete “${label}” and its ${count} item${count === 1 ? "" : "s"}? This cannot be undone.`
+      : `Delete category “${label}”?`;
+    const run = async () => {
+      setBusy(true);
+      try {
+        const r = await deleteCategory(id);
+        if (r.ok) flashMsg("ok", "Category deleted.");
+        else flashMsg("err", r.error);
+      } finally {
+        setBusy(false);
+      }
+    };
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm(msg)) void run();
+    } else {
+      Alert.alert("Delete category", msg, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => void run() },
+      ]);
+    }
+  };
+
+  const confirmDeleteItem = () => {
+    if (!editing) return;
+    const msg = `Delete “${editing.name || "this item"}”?`;
+    const run = async () => {
+      setBusy(true);
+      try {
+        const r = await deleteItem(editing.id);
+        if (r.ok) {
+          setEditing(null);
+          flashMsg("ok", "Item deleted.");
+        } else flashMsg("err", r.error);
+      } finally {
+        setBusy(false);
+      }
+    };
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm(msg)) void run();
+    } else {
+      Alert.alert("Delete item", msg, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => void run() },
+      ]);
+    }
   };
 
   const printSheet = () => {
@@ -134,14 +259,22 @@ export default function Owner() {
       <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)}>
         <View style={styles.top}>
           <View>
-            <Text style={styles.k}>Owner · {apiOnline ? "API" : "LOCAL"}</Text>
-            <Text style={styles.h}>CAFÉ SETUP</Text>
+            <Text style={styles.k}>Owner · {apiOnline ? "Live API" : "Offline"}</Text>
+            <Text style={styles.h}>Café setup</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             <Btn label="Table 4 demo" href={`/c/${slug}/t/04` as any} variant="outline" />
             <Btn label="Staff board" href={`/staff?slug=${slug}` as any} variant="gold" />
           </View>
         </View>
+
+        {flash ? (
+          <View style={{ marginBottom: 12 }}>
+            <Banner kind={flash.kind === "ok" ? "ok" : flash.kind === "err" ? "err" : "info"}>
+              {flash.text}
+            </Banner>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.section}>Choose café</Text>
@@ -155,7 +288,7 @@ export default function Owner() {
               />
             ))}
           </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Slug: /c/{slug}/t/…</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Guest path: /c/{slug}/t/…</Text>
         </View>
 
         <View style={styles.card}>
@@ -174,9 +307,10 @@ export default function Owner() {
                 style={{
                   width: 36,
                   height: 36,
+                  borderRadius: 8,
                   backgroundColor: c,
-                  borderWidth: accent === c ? 3 : 1.5,
-                  borderColor: colors.ink,
+                  borderWidth: accent === c ? 2 : 1,
+                  borderColor: accent === c ? colors.ink : colors.line,
                 }}
               />
             ))}
@@ -184,17 +318,23 @@ export default function Owner() {
           <Field label="Custom hex" value={accent} onChangeText={setAccent} />
           <Field label="Tables (QR 01–N)" value={tables} onChangeText={setTables} keyboardType="number-pad" />
           <Toggle label={cash ? "Cash only · on" : "Cash only · off"} on={cash} onPress={() => setCash((v) => !v)} />
-          <Btn label="Save profile" onPress={() => void saveProfile()} />
-          {saved ? <Text style={styles.ok}>{saved}</Text> : null}
+          <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.section}>Categories</Text>
+          {!sortedCats.length ? (
+            <Text style={{ color: colors.muted }}>No categories yet — add one to start building the menu.</Text>
+          ) : null}
           {sortedCats.map((c) => (
             <View key={c.id} style={styles.catRow}>
-              <Field value={c.name} onChangeText={(v) => void renameCategory(c.id, v)} style={{ flex: 1 }} />
-              <Pressable onPress={() => void deleteCategory(c.id)} style={styles.kill}>
-                <Text style={styles.killTxt}>DELETE</Text>
+              <Field
+                value={c.name}
+                onChangeText={(v) => void renameCategory(c.id, v)}
+                style={{ flex: 1 }}
+              />
+              <Pressable onPress={() => confirmDeleteCategory(c.id, c.name)} style={styles.kill} disabled={busy}>
+                <Text style={styles.killTxt}>Delete</Text>
               </Pressable>
             </View>
           ))}
@@ -204,11 +344,15 @@ export default function Owner() {
             </View>
             <Btn
               label="Add"
+              disabled={busy || !catName.trim()}
               onPress={() => {
-                if (catName.trim()) {
-                  void addCategory(catName.trim());
-                  setCatName("");
-                }
+                void (async () => {
+                  const r = await addCategory(catName.trim());
+                  if (r.ok) {
+                    setCatName("");
+                    flashMsg("ok", "Category added.");
+                  } else flashMsg("err", r.error);
+                })();
               }}
             />
           </View>
@@ -217,32 +361,57 @@ export default function Owner() {
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.section}>Menu items</Text>
-            <Btn label="New item" onPress={startNew} variant="gold" />
+            <Btn label="New item" onPress={startNew} variant="gold" disabled={!sortedCats.length} />
           </View>
-          {sortedCats.map((c) => (
-            <View key={c.id} style={{ gap: 8 }}>
-              <Text style={styles.catHead}>{c.name.toUpperCase()}</Text>
-              {items
-                .filter((i) => i.categoryId === c.id)
-                .map((it) => (
-                  <Pressable key={it.id} onPress={() => setEditing({ ...it, tags: [...it.tags] })} style={styles.itemRow}>
-                    <Image source={{ uri: it.image }} style={styles.thumb} />
+          {!items.length ? (
+            <Text style={{ color: colors.muted }}>No items yet. Tap New item to add your first dish.</Text>
+          ) : null}
+          {sortedCats.map((c) => {
+            const catItems = items.filter((i) => i.categoryId === c.id);
+            return (
+              <View key={c.id} style={{ gap: 8 }}>
+                <Text style={styles.catHead}>{c.name}</Text>
+                {!catItems.length ? (
+                  <Text style={{ color: colors.faint, fontSize: 12 }}>Empty category</Text>
+                ) : null}
+                {catItems.map((it) => (
+                  <Pressable key={it.id} onPress={() => { setFormErr(""); setEditing(toDraft(it)); }} style={styles.itemRow}>
+                    <Image source={{ uri: it.image || DEFAULT_IMAGE }} style={styles.thumb} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemName}>{it.name}</Text>
                       <Text style={styles.itemMeta}>
                         {money(it.price, cur)} · {it.prepMinutes} min · {it.tags.join(" · ") || "no tags"}
                       </Text>
                     </View>
-                    <Text style={styles.edit}>EDIT</Text>
+                    <Text style={styles.edit}>Edit</Text>
                   </Pressable>
                 ))}
+              </View>
+            );
+          })}
+          {orphanItems.length ? (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Text style={styles.catHead}>Uncategorized</Text>
+              {orphanItems.map((it) => (
+                <Pressable key={it.id} onPress={() => { setFormErr(""); setEditing(toDraft(it)); }} style={styles.itemRow}>
+                  <Image source={{ uri: it.image || DEFAULT_IMAGE }} style={styles.thumb} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{it.name}</Text>
+                    <Text style={styles.itemMeta}>{money(it.price, cur)} · assign a category</Text>
+                  </View>
+                  <Text style={styles.edit}>Edit</Text>
+                </Pressable>
+              ))}
             </View>
-          ))}
+          ) : null}
         </View>
 
         {editing ? (
           <View style={styles.card}>
-            <Text style={styles.section}>{editing.name ? "Edit item" : "New item"}</Text>
+            <Text style={styles.section}>{items.some((i) => i.id === editing.id) ? "Edit item" : "New item"}</Text>
+            {formErr ? (
+              <Banner kind="err">{formErr}</Banner>
+            ) : null}
             <Field label="Name" value={editing.name} onChangeText={(v) => setEditing({ ...editing, name: v })} />
             <Field
               label="Description"
@@ -252,17 +421,28 @@ export default function Owner() {
             />
             <Field
               label="Price"
-              value={String(editing.price)}
-              onChangeText={(v) => setEditing({ ...editing, price: Number(v) || 0 })}
+              value={editing.priceStr}
+              onChangeText={(v) => setEditing({ ...editing, priceStr: v, price: parseMoneyInput(v) })}
               keyboardType="decimal-pad"
+              placeholder="0.00"
             />
             <Field
               label="Prep minutes"
-              value={String(editing.prepMinutes)}
-              onChangeText={(v) => setEditing({ ...editing, prepMinutes: Number(v) || 0 })}
+              value={editing.prepStr}
+              onChangeText={(v) => setEditing({ ...editing, prepStr: v, prepMinutes: parseIntInput(v, 5) })}
               keyboardType="number-pad"
+              placeholder="5"
             />
-            <Field label="Photo URL" value={editing.image} onChangeText={(v) => setEditing({ ...editing, image: v })} />
+            <Field
+              label="Photo URL"
+              value={editing.image}
+              onChangeText={(v) => setEditing({ ...editing, image: v })}
+              placeholder="https://…"
+              autoCapitalize="none"
+            />
+            {editing.image.trim() && !isHttpUrl(editing.image) ? (
+              <Text style={{ color: colors.danger, fontSize: 12 }}>URL must be http(s).</Text>
+            ) : null}
             <Text style={styles.lbl}>Category</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {sortedCats.map((c) => (
@@ -304,21 +484,15 @@ export default function Owner() {
             </View>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <View style={{ flex: 1, minWidth: 140 }}>
-                <Btn label="Save item" onPress={() => void saveItem()} variant="gold" />
+                <Btn label={busy ? "Saving…" : "Save item"} onPress={() => void saveItem()} variant="gold" disabled={busy} />
               </View>
               <View style={{ flex: 1, minWidth: 140 }}>
-                <Btn label="Cancel" variant="outline" onPress={() => setEditing(null)} />
+                <Btn label="Cancel" variant="outline" onPress={() => { setEditing(null); setFormErr(""); }} />
               </View>
             </View>
             {items.some((i) => i.id === editing.id) ? (
-              <Pressable
-                onPress={() => {
-                  void deleteItem(editing.id);
-                  setEditing(null);
-                }}
-                style={{ marginTop: 8 }}
-              >
-                <Text style={styles.danger}>DELETE ITEM</Text>
+              <Pressable onPress={confirmDeleteItem} style={{ marginTop: 8 }} disabled={busy}>
+                <Text style={styles.danger}>Delete item</Text>
               </Pressable>
             ) : null}
           </View>
@@ -334,7 +508,7 @@ export default function Owner() {
       </View>
 
       <View style={styles.sheet}>
-        <Text style={styles.sheetTitle}>{cafe.name.toUpperCase()}</Text>
+        <Text style={styles.sheetTitle}>{cafe.name}</Text>
         <Text style={styles.sheetSub}>Scan the code on your table to order · cash at the counter</Text>
         <View style={styles.qrGrid}>
           {Array.from({ length: count }, (_, i) => {
@@ -359,51 +533,70 @@ export default function Owner() {
 const styles = StyleSheet.create({
   top: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" },
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
-  h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.6, color: colors.ink, marginTop: 6 },
+  h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.2, color: colors.ink, marginTop: 6 },
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    padding: 16,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 18,
     gap: 12,
     marginBottom: 16,
+    ...shadow.card,
   },
-  section: { fontSize: 13, fontWeight: "800", letterSpacing: 1.4, color: colors.ink, textTransform: "uppercase" },
-  ok: { color: colors.ready, fontWeight: "700" },
+  section: { fontSize: 13, fontWeight: "800", letterSpacing: 1.2, color: colors.ink, textTransform: "uppercase" },
   catRow: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
-  kill: { minHeight: 48, paddingHorizontal: 12, justifyContent: "center", borderWidth: 1.5, borderColor: colors.ink },
-  killTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.danger },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 },
-  catHead: { fontSize: 11, fontWeight: "800", letterSpacing: 1.6, color: colors.muted, marginTop: 8 },
+  kill: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    backgroundColor: colors.bg,
+  },
+  killTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 0.8, color: colors.danger, textTransform: "uppercase" },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  catHead: { fontSize: 12, fontWeight: "800", letterSpacing: 1.2, color: colors.muted, marginTop: 8, textTransform: "uppercase" },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    padding: 8,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 10,
     backgroundColor: colors.bg,
   },
-  thumb: { width: 48, height: 48, backgroundColor: colors.wash },
+  thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.wash },
   itemName: { fontWeight: "800", color: colors.ink },
   itemMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  edit: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4, color: colors.ink },
-  lbl: { fontSize: 11, letterSpacing: 1.6, fontWeight: "700", textTransform: "uppercase", color: colors.muted },
-  danger: { color: colors.danger, fontWeight: "800", letterSpacing: 1.4, fontSize: 11 },
+  edit: { fontSize: 11, fontWeight: "800", letterSpacing: 1, color: colors.ink, textTransform: "uppercase" },
+  lbl: { fontSize: 11, letterSpacing: 1.4, fontWeight: "700", textTransform: "uppercase", color: colors.muted },
+  danger: { color: colors.danger, fontWeight: "800", letterSpacing: 1, fontSize: 12, textTransform: "uppercase" },
   sheet: { marginTop: 8, marginBottom: 40 },
-  sheetTitle: { fontSize: 22, fontWeight: "800", letterSpacing: 1, color: colors.ink, textAlign: "center" },
+  sheetTitle: { fontSize: 22, fontWeight: "800", letterSpacing: 0.4, color: colors.ink, textAlign: "center" },
   sheetSub: { textAlign: "center", color: colors.muted, marginTop: 6, marginBottom: 16 },
   qrGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   qrCard: {
     width: 200,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
     backgroundColor: colors.white,
     padding: 12,
     alignItems: "center",
     gap: 8,
+    ...shadow.card,
   },
   qr: { width: 160, height: 160 },
-  qrTable: { fontWeight: "800", letterSpacing: 1.4, color: colors.ink },
+  qrTable: { fontWeight: "800", letterSpacing: 1.2, color: colors.ink },
   qrUrl: { fontSize: 10, color: colors.muted, textAlign: "center" },
 });

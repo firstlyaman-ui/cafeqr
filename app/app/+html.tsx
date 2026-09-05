@@ -23,7 +23,8 @@ export default function Root({ children }: { children: ReactNode }) {
               * { box-sizing: border-box; }
               @media print {
                 header, nav, .no-print, [data-noprint="true"] { display: none !important; }
-                body { background: #fff; }
+                body { background: #fff !important; }
+                @page { margin: 12mm; }
               }
             `,
           }}

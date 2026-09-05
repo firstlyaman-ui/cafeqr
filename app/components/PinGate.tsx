@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BrandMark, Kicker } from "@/components/ui";
-import { colors } from "@/lib/theme";
+import { hapticError, hapticLight, hapticSuccess } from "@/lib/haptics";
+import { borderWidth, colors, radius } from "@/lib/theme";
 
 export function PinGate({
   title,
@@ -23,6 +24,7 @@ export function PinGate({
 
   const tap = async (d: string) => {
     if (busy) return;
+    void hapticLight();
     if (d === "⌫") {
       setVal((v) => v.slice(0, -1));
       setErr(false);
@@ -36,8 +38,11 @@ export function PinGate({
       try {
         let ok = next === pin;
         if (onCheck) ok = await onCheck(next);
-        if (ok) onOk();
-        else {
+        if (ok) {
+          void hapticSuccess();
+          onOk();
+        } else {
+          void hapticError();
           setErr(true);
           setVal("");
         }
@@ -104,7 +109,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 16,
     height: 16,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
     backgroundColor: colors.white,
   },
@@ -124,11 +129,12 @@ const styles = StyleSheet.create({
     height: 64,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
     backgroundColor: colors.white,
-    marginTop: -1.5,
-    marginLeft: -1.5,
+    marginTop: -1,
+    marginLeft: -1,
+    borderRadius: 0,
   },
   keyTxt: { fontSize: 20, fontWeight: "800", color: colors.ink },
 });

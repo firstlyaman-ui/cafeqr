@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Btn, Loading, Screen } from "@/components/ui";
 import { money, tableLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { colors } from "@/lib/theme";
+import { colors, radius } from "@/lib/theme";
 
 export default function Confirmation() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -47,7 +47,8 @@ export default function Confirmation() {
 
       <View style={{ gap: 10 }}>
         <Btn label="Track this order" onPress={() => router.push(`/order/${order.id}` as any)} variant="gold" />
-        <Btn label="Back to menu" href={`/t/${order.table}` as any} variant="outline" />
+        <Btn label="Print receipt" href={`/order/${order.id}/invoice` as any} variant="outline" />
+        <Btn label="Back to menu" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
       </View>
     </Screen>
   );
@@ -68,8 +69,9 @@ const styles = StyleSheet.create({
   sub: { color: colors.muted, marginTop: 10, marginBottom: 22, lineHeight: 22 },
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius,
     padding: 16,
     gap: 12,
     marginBottom: 16,

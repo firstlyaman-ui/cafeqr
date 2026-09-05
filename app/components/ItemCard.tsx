@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AddBtn, Photo, Stepper, Tag } from "@/components/ui";
 import { money } from "@/lib/format";
-import { colors } from "@/lib/theme";
+import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import type { MenuItem } from "@/lib/types";
 
 export function ItemCard({
@@ -70,9 +70,12 @@ export function ItemCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
     marginBottom: 0,
+    overflow: "hidden",
+    ...shadow.card,
   },
   badges: {
     position: "absolute",
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
     backgroundColor: colors.white,
-    borderWidth: 1.5,
+    borderWidth,
     borderColor: colors.ink,
     paddingHorizontal: 8,
     paddingVertical: 4,
