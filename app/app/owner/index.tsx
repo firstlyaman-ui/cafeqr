@@ -3,11 +3,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
+import { QrImage, printQrSheet } from "@/components/QrImage";
 import { Banner, Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/ui";
 import { tableUrlFor } from "@/lib/api";
 import { isHttpUrl, money, parseIntInput, parseMoneyInput } from "@/lib/format";
 import { hapticError, hapticSuccess } from "@/lib/haptics";
-import { qrDataUri } from "@/lib/qr";
 import { emptyItem, useStore } from "@/lib/store";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem } from "@/lib/types";
@@ -281,7 +281,7 @@ export default function Owner() {
   };
 
   const printSheet = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") window.print();
+    void printQrSheet();
   };
 
   const count = Math.max(1, cafe.tableCount);
@@ -710,11 +710,13 @@ export default function Owner() {
             const url = tableUrlFor(slug, n);
             return (
               <View key={n} style={styles.qrCard} {...({ className: "qr-print-cell" } as any)}>
-                <Image source={{ uri: qrDataUri(url, colors.ink) }} style={styles.qr} />
-                <Text style={styles.qrTable}>TABLE {String(n).padStart(2, "0")}</Text>
-                <Text style={styles.qrUrl} numberOfLines={2}>
-                  {url}
-                </Text>
+                <QrImage
+                  value={url}
+                  caption={`TABLE ${String(n).padStart(2, "0")}`}
+                  cafeName={cafe.name}
+                  size={160}
+                  color={colors.ink}
+                />
               </View>
             );
           })}

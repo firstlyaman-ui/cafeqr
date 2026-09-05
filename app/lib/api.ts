@@ -285,10 +285,18 @@ export function guestPath(slug: string, table: string) {
   return `/c/${slug}/t/${t}`;
 }
 
+/** Public web origin baked into printable QR payloads. */
+export const PUBLIC_WEB_ORIGIN = "https://cafeqr-five.vercel.app";
+
 export function tableUrlFor(slug: string, table: number | string) {
   const path = guestPath(slug, String(table));
   if (typeof window !== "undefined" && window.location?.origin) {
-    return `${window.location.origin}${path}`;
+    const origin = window.location.origin.replace(/\/$/, "");
+    // Prefer the public production host so printed codes work off-LAN / not localhost.
+    if (/localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(origin)) {
+      return `${PUBLIC_WEB_ORIGIN}${path}`;
+    }
+    return `${origin}${path}`;
   }
-  return path;
+  return `${PUBLIC_WEB_ORIGIN}${path}`;
 }

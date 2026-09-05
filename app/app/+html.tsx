@@ -33,16 +33,43 @@ export default function Root({ children }: { children: ReactNode }) {
               * { box-sizing: border-box; }
               @media print {
                 header, nav, .no-print, [data-noprint="true"] { display: none !important; }
-                body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                body, #root {
+                  background: #fff !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                }
                 @page { margin: 10mm; size: auto; }
-                .qr-print-grid { display: flex !important; flex-wrap: wrap !important; gap: 8mm !important; justify-content: center !important; }
+                .qr-print-sheet, .qr-sheet, .qr-print-grid, .qr-print-cell {
+                  display: block !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .qr-print-grid {
+                  display: flex !important;
+                  flex-wrap: wrap !important;
+                  gap: 8mm !important;
+                  justify-content: center !important;
+                }
                 .qr-print-cell {
                   break-inside: avoid;
                   page-break-inside: avoid;
                   width: 42mm !important;
                   text-align: center;
+                  background: #fff !important;
                 }
-                .qr-print-cell img { width: 36mm !important; height: 36mm !important; }
+                .qr-print-cell img, .qr-sheet img, img.qr-img {
+                  display: inline-block !important;
+                  visibility: visible !important;
+                  width: 36mm !important;
+                  height: 36mm !important;
+                  max-width: 36mm !important;
+                  background: #fff !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
               }
             `,
           }}

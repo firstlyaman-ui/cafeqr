@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { QrImage } from "@/components/QrImage";
+import { QrImage, printQrSheet } from "@/components/QrImage";
 import { Btn, Screen } from "@/components/ui";
 import { tableUrlFor } from "@/lib/api";
 import { padTable, tableLabel } from "@/lib/format";
@@ -16,10 +16,6 @@ export default function StaffQr() {
     [cafe.tableCount],
   );
 
-  const print = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") window.print();
-  };
-
   return (
     <Screen maxWidth={980}>
       <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)}>
@@ -30,18 +26,14 @@ export default function StaffQr() {
           web, use print — chrome hides and QRs fit one page.
         </Text>
         <View style={{ flexDirection: "row", gap: 10, marginTop: 16, marginBottom: 20, flexWrap: "wrap" }}>
-          <Btn label="Print sheet" onPress={print} />
+          <Btn label="Print sheet" onPress={() => void printQrSheet()} />
           <Btn label="Kitchen board" href={`/staff?slug=${slug}` as any} variant="outline" />
         </View>
       </View>
-      <View style={styles.grid} {...({ className: "qr-print-grid" } as any)}>
+      <View style={styles.grid} {...({ className: "qr-print-grid qr-print-sheet" } as any)}>
         {tables.map((t) => (
           <View key={t} style={styles.cell} {...({ className: "qr-print-cell" } as any)}>
-            <QrImage value={tableUrlFor(slug, t)} caption={tableLabel(t)} size={140} />
-            <Text style={styles.cafe}>{cafe.name}</Text>
-            <Text style={styles.path}>
-              /c/{slug}/t/{t}
-            </Text>
+            <QrImage value={tableUrlFor(slug, t)} caption={tableLabel(t)} cafeName={cafe.name} size={140} />
           </View>
         ))}
       </View>
@@ -52,6 +44,4 @@ export default function StaffQr() {
 const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   cell: { width: 200, alignItems: "center", marginBottom: 8 },
-  cafe: { marginTop: 6, fontSize: 11, color: colors.muted, textAlign: "center" },
-  path: { fontSize: 10, color: colors.gold, textAlign: "center", marginTop: 2 },
 });
