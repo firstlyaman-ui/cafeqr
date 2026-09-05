@@ -108,6 +108,7 @@ async function req<T>(
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
+      cache: "no-store",
       ...rest,
       headers,
       signal: ctrl?.signal ?? rest.signal,
@@ -174,7 +175,7 @@ export function createCafe(body: Record<string, unknown>) {
 }
 
 export function patchCafe(slug: string, body: Record<string, unknown>, ownerPin: string) {
-  return req(`/cafes/${encodeURIComponent(slug)}`, {
+  return req<ApiCafe>(`/cafes/${encodeURIComponent(slug)}`, {
     method: "PATCH",
     body: JSON.stringify(body),
     ownerPin,

@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { QrImage, printQrSheet } from "@/components/QrImage";
@@ -9,8 +10,14 @@ import { useStore } from "@/lib/store";
 import { colors, type } from "@/lib/theme";
 
 export default function StaffQr() {
-  const { cafe, cafeSlug } = useStore();
+  const { cafe, cafeSlug, loadCafe } = useStore();
   const slug = cafe.slug || cafeSlug || "velvet-bean";
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadCafe(slug);
+    }, [loadCafe, slug]),
+  );
   const tables = useMemo(
     () => Array.from({ length: cafe.tableCount }, (_, i) => padTable(String(i + 1))),
     [cafe.tableCount],

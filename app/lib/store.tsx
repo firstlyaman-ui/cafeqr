@@ -322,13 +322,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem(KEY);
         if (raw) {
-          const parsed = JSON.parse(raw) as Partial<Persist>;
-          savedSlug = parsed.cafeSlug || DEFAULT_SLUG;
+          const parsed = JSON.parse(raw) as Partial<Persist> & { cafe?: CafeProfile };
+          savedSlug = parsed.cafeSlug || parsed.cafe?.slug || DEFAULT_SLUG;
+          // Never restore cafe profile / menu from AsyncStorage — API loadCafe is source of truth
+          // for name and other profile fields (avoids stale cafe.name winning after owner rename).
           setState((s) => ({
             ...s,
             guest: { ...emptyGuest, ...(parsed.guest || {}) },
             cart: parsed.cart || [],
             cartTable: parsed.cartTable ?? null,
+            cafeSlug: savedSlug,
           }));
         }
       } catch {
@@ -357,23 +360,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const renameTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  const mergeCafeListEntry = useCallback((slug: string, cafe: CafeProfile) => {
+    setCafeList((list) => {
+      const entry = {
+        slug: cafe.slug || slug,
+        name: cafe.name,
+        tagline: cafe.tagline,
+        currency: cafe.currency,
+        country: cafe.country,
+        taxName: cafe.taxName,
+        taxRate: cafe.taxRate,
+        accentColor: cafe.accentColor,
+      };
+      if (!list.length) return [entry];
+      let found = false;
+      const next = list.map((c) => {
+        if (c.slug !== slug) return c;
+        found = true;
+        return { ...c, ...entry };
+      });
+      return found ? next : [...next, entry];
+    });
+  }, []);
+
   const saveCafe = useCallback(
     async (p: Partial<CafeProfile>): Promise<StoreResult> => {
       const s = stateRef.current;
       const next = { ...s.cafe, ...p };
+      // Optimistic: profile + cafe list (landing / switchers) so rename shows everywhere immediately
       setState((prev) => ({ ...prev, cafe: next }));
+      mergeCafeListEntry(s.cafeSlug, next);
       if (apiOnlineRef.current) {
         try {
-          await api.patchCafe(s.cafeSlug, p, ownerPinRef.current);
+          const updated = (await api.patchCafe(s.cafeSlug, p, ownerPinRef.current)) as api.ApiCafe;
+          if (updated && typeof updated === "object" && updated.name) {
+            const mapped = mapApiCafe(updated);
+            setState((prev) => ({ ...prev, cafe: { ...prev.cafe, ...mapped } }));
+            mergeCafeListEntry(s.cafeSlug, mapped);
+          }
+          // Quick refresh so list order / other sessions' fields stay authoritative
+          await refreshCafeList();
           return { ok: true };
         } catch (e) {
           console.warn("[cafeqr] saveCafe API failed", e);
+          try {
+            await loadCafe(s.cafeSlug);
+            await refreshCafeList();
+          } catch {
+            /* ignore */
+          }
           return { ok: false, error: errMsg(e, "Could not save café profile") };
         }
       }
       return { ok: true };
     },
-    [],
+    [loadCafe, mergeCafeListEntry, refreshCafeList],
   );
 
   const addCategory = useCallback(async (name: string): Promise<StoreResult> => {

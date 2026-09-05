@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
@@ -97,9 +97,12 @@ export default function Staff() {
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [picked, setPicked] = useState(String(params.slug || cafeSlug || "velvet-bean"));
 
-  useEffect(() => {
-    void refreshCafeList();
-  }, [refreshCafeList]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshCafeList();
+      void loadCafe(String(params.slug || picked || cafeSlug || "velvet-bean"));
+    }, [refreshCafeList, loadCafe, params.slug, picked, cafeSlug]),
+  );
 
   useEffect(() => {
     const slug = String(params.slug || picked || "velvet-bean");

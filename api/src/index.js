@@ -250,6 +250,7 @@ async function createApp() {
 
   app.get("/cafes", async (_req, res) => {
     try {
+      res.set("Cache-Control", "no-store");
       const rows = await store.listCafes();
       res.json(
         rows.map((r) => ({
@@ -307,6 +308,7 @@ async function createApp() {
     if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
     const categories = (await store.listCategories(cafe.id)).map(mapCategory);
     const items = (await store.listItems(cafe.id, { activeOnly: true })).map(mapItem);
+    res.set("Cache-Control", "no-store");
     res.json({ cafe: mapCafe(cafe), categories, items });
   });
 

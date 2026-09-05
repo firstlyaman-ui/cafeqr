@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
@@ -83,9 +83,11 @@ export default function Owner() {
     flashTimer.current = setTimeout(() => setFlash(null), kind === "err" ? 6000 : 3200);
   };
 
-  useEffect(() => {
-    void refreshCafeList();
-  }, [refreshCafeList]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshCafeList();
+    }, [refreshCafeList]),
+  );
 
   useEffect(() => {
     const slug = String(params.slug || picked || "velvet-bean");
@@ -170,8 +172,11 @@ export default function Owner() {
         taxName: taxName.trim() || "Tax",
         taxRate: rate,
       });
-      if (r.ok) flashMsg("ok", apiOnline ? "Café profile saved." : "Saved locally (API offline).");
-      else flashMsg("err", r.error);
+      if (r.ok) {
+        // Name/profile already in store + cafeList; refresh list again for other tabs/sessions
+        void refreshCafeList();
+        flashMsg("ok", apiOnline ? "Café profile saved." : "Saved locally (API offline).");
+      } else flashMsg("err", r.error);
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Banner, BrandMark, Btn, Kicker, Loading, Screen } from "@/components/ui";
@@ -26,11 +27,17 @@ const STEPS = [
 export default function Landing() {
   const { ready, cafeList, apiOnline, refreshCafeList } = useStore();
 
-  useEffect(() => {
-    void refreshCafeList();
-  }, [refreshCafeList]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshCafeList();
+    }, [refreshCafeList]),
+  );
 
   if (!ready) return <Loading />;
+
+  const demo = cafeList.find((c) => c.slug === "velvet-bean") || cafeList[0];
+  const demoHref = (`/c/${demo?.slug || "velvet-bean"}/t/04`) as any;
+  const demoLabel = demo?.name ? `Try ${demo.name}` : "Try demo café";
 
   return (
     <Screen maxWidth={980}>
@@ -57,7 +64,7 @@ export default function Landing() {
 
       <View style={styles.ctaRow}>
         <View style={{ flex: 1, minWidth: 200 }}>
-          <Btn label="Try Velvet Bean" href="/c/velvet-bean/t/04" variant="gold" />
+          <Btn label={demoLabel} href={demoHref} variant="gold" />
         </View>
         <View style={{ flex: 1, minWidth: 200 }}>
           <Btn label="Open owner setup" href="/owner" />
@@ -72,7 +79,7 @@ export default function Landing() {
         <View style={styles.cafeGrid}>
           {(cafeList.length
             ? cafeList
-            : [{ slug: "velvet-bean", name: "Velvet Bean", tagline: "Demo", currency: "USD" }]
+            : [{ slug: "velvet-bean", name: "Demo café", tagline: "Demo", currency: "USD" }]
           ).map((c) => (
             <View key={c.slug} style={[styles.cafeCard, shadow.card]}>
               <Text style={styles.cafeName}>{c.name}</Text>

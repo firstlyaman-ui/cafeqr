@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,17 +36,19 @@ export default function CafeTableMenu() {
   const [search, setSearch] = useState("");
   const cols = useCols(300);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
       setLoadingCafe(true);
-      await loadCafe(slug);
-      if (alive) setLoadingCafe(false);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [slug, loadCafe]);
+      void (async () => {
+        await loadCafe(slug);
+        if (alive) setLoadingCafe(false);
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [slug, loadCafe]),
+  );
 
   const welcomed = guest.welcomedTables.includes(`${slug}:${table}`);
   const accent = cafe.accentColor || colors.gold;
