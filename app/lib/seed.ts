@@ -12,6 +12,8 @@ export const demoCafe: CafeProfile = {
   country: "US",
   taxName: "Tax",
   taxRate: 0.08,
+  altMilkPrice: 0.5,
+  extraShotPrice: 0.75,
   address: "42 Blossom Lane, Corner Bistro Plaza",
   orderingEnabled: true,
 };

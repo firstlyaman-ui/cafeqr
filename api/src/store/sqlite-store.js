@@ -30,8 +30,8 @@ class SqliteStore {
   async createCafe(row) {
     this.db
       .prepare(
-        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, owner_pin, staff_pin, ordering_enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.slug,
@@ -46,6 +46,8 @@ class SqliteStore {
         row.country ?? "US",
         row.tax_name ?? "Tax",
         row.tax_rate ?? 0.08,
+        row.alt_milk_price ?? null,
+        row.extra_shot_price ?? null,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
         row.ordering_enabled ?? 1
@@ -68,6 +70,8 @@ class SqliteStore {
           country = COALESCE(?, country),
           tax_name = COALESCE(?, tax_name),
           tax_rate = COALESCE(?, tax_rate),
+          alt_milk_price = COALESCE(?, alt_milk_price),
+          extra_shot_price = COALESCE(?, extra_shot_price),
           ordering_enabled = COALESCE(?, ordering_enabled)
          WHERE id = ?`
       )
@@ -83,6 +87,8 @@ class SqliteStore {
         fields.country ?? null,
         fields.tax_name ?? null,
         fields.tax_rate ?? null,
+        fields.alt_milk_price ?? null,
+        fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
         id
       );

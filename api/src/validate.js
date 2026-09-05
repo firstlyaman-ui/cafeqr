@@ -18,13 +18,19 @@ const createCafeSchema = z.object({
   tax_name: z.string().max(64).optional(),
   taxRate: z.union([z.number(), z.string()]).optional(),
   tax_rate: z.union([z.number(), z.string()]).optional(),
-  ownerPin: z.string().optional(),
-  owner_pin: z.string().optional(),
-  staffPin: z.string().optional(),
-  staff_pin: z.string().optional(),
+  altMilkPrice: z.union([z.number(), z.string()]).optional(),
+  alt_milk_price: z.union([z.number(), z.string()]).optional(),
+  extraShotPrice: z.union([z.number(), z.string()]).optional(),
+  extra_shot_price: z.union([z.number(), z.string()]).optional(),
+  ownerPin: z.string().min(4).optional(),
+  owner_pin: z.string().min(4).optional(),
+  staffPin: z.string().min(4).optional(),
+  staff_pin: z.string().min(4).optional(),
   orderingEnabled: z.boolean().optional(),
   ordering_enabled: z.union([z.number(), z.boolean()]).optional(),
-}).refine((b) => !!(b.slug || b.name), { message: "slug or name required" });
+}).refine((b) => !!(b.slug || b.name), { message: "slug or name required" })
+  .refine((b) => !!(b.ownerPin || b.owner_pin), { message: "ownerPin required" })
+  .refine((b) => !!(b.staffPin || b.staff_pin), { message: "staffPin required" });
 
 const patchCafeSchema = z.object({
   name: z.string().optional(),
@@ -43,6 +49,10 @@ const patchCafeSchema = z.object({
   tax_name: z.string().max(64).optional(),
   taxRate: z.union([z.number(), z.string()]).optional(),
   tax_rate: z.union([z.number(), z.string()]).optional(),
+  altMilkPrice: z.union([z.number(), z.string()]).optional(),
+  alt_milk_price: z.union([z.number(), z.string()]).optional(),
+  extraShotPrice: z.union([z.number(), z.string()]).optional(),
+  extra_shot_price: z.union([z.number(), z.string()]).optional(),
   orderingEnabled: z.boolean().optional(),
   ordering_enabled: z.union([z.number(), z.boolean()]).optional(),
 }).passthrough();
@@ -62,7 +72,7 @@ const itemSchema = z.object({
   prepMinutes: z.union([z.number(), z.string()]).optional(),
   prep_minutes: z.union([z.number(), z.string()]).optional(),
   tags: z.array(z.string()).optional(),
-  image: z.string().optional(),
+  image: z.string().max(2048, "image URL too long").optional(),
   hasMilk: z.boolean().optional(),
   has_milk: z.union([z.boolean(), z.number()]).optional(),
   hasExtraShot: z.boolean().optional(),
@@ -77,6 +87,9 @@ const orderLineSchema = z.object({
   name: z.string().optional(),
   qty: z.union([z.number(), z.string()]).optional(),
   unitPrice: z.union([z.number(), z.string()]).optional(),
+  milk: z.string().optional(),
+  extraShot: z.union([z.boolean(), z.number()]).optional(),
+  extra_shot: z.union([z.boolean(), z.number()]).optional(),
 }).passthrough();
 
 const placeOrderSchema = z.object({

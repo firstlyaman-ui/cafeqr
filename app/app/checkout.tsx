@@ -51,7 +51,7 @@ export default function Checkout() {
         return;
       }
       void hapticSuccess();
-      router.replace(`/order/${order.id}` as any);
+      router.replace(`/order/${order.id}?confirm=${encodeURIComponent(order.confirmCode || "")}` as any);
     } catch (e: any) {
       setErr(e?.message || "Could not place order. Check your connection and try again.");
       void hapticError();

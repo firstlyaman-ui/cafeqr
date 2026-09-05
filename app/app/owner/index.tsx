@@ -208,6 +208,10 @@ export default function Owner() {
     const price = parseMoneyInput(editing.priceStr);
     const prep = parseIntInput(editing.prepStr, 5) || 5;
     const image = (editing.image || "").trim() || DEFAULT_IMAGE;
+    if (editing.image.trim() && editing.image.trim().length > 2048) {
+      Alert.alert("Image URL too long", "Keep image URLs under 2048 characters.");
+      return;
+    }
     if (editing.image.trim() && !isHttpUrl(image)) {
       setFormErr("Photo URL must start with http:// or https://");
       void hapticError();

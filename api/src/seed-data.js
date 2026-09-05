@@ -1,3 +1,9 @@
+/**
+ * Seed / demo cafe data.
+ * Demo cafes intentionally use PIN 1234 for Monica's pitch (Velvet Bean,
+ * Spice Lane, Himalayan Beans). POST /cafes rejects 1234 for new cafes.
+ * Optional env DEMO_OWNER_PIN / DEMO_STAFF_PIN overrides on seed only.
+ */
 /** Seed menus for velvet-bean and spice-lane */
 
 const velvetBean = {

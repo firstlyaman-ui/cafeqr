@@ -59,7 +59,8 @@ Owner and staff screens take `?slug=` (e.g. `/owner?slug=velvet-bean`, `/staff?s
 
 ## Demo PINs
 
-Owner and staff PIN for both seeded cafes: **`1234`**
+Owner and staff PIN for seeded demos (Velvet Bean / Spice Lane / Himalayan Beans): **`1234`**  
+(`1234` is reserved for seed demos only — `POST /cafes` rejects it for new cafes. Optional `DEMO_OWNER_PIN` / `DEMO_STAFF_PIN` override on seed.)
 
 ## Demo highlights (competitor-style)
 

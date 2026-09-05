@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
@@ -24,17 +24,34 @@ function formatStamp(ts: number) {
 }
 
 export default function OrderInvoice() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { orders, cafe, ready } = useStore();
+  const { id, confirm } = useLocalSearchParams<{ id: string; confirm?: string }>();
+  const { orders, cafe, ready, fetchGuestOrder, apiOnline } = useStore();
   const cur = cafe.currency || "USD";
+  const [authErr, setAuthErr] = useState<string | null>(null);
   const order = orders.find((o) => o.id === id);
+
+  useEffect(() => {
+    if (!ready || !id || !apiOnline) return;
+    const code = (typeof confirm === "string" && confirm) || order?.confirmCode || "";
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchGuestOrder(String(id), code || undefined);
+      if (cancelled) return;
+      if (!r.ok && r.status === 401) setAuthErr("Confirm code required to view this receipt.");
+      else if (!r.ok && !order) setAuthErr(r.error);
+      else setAuthErr(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, id, confirm, apiOnline, fetchGuestOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return <Loading />;
   if (!order) {
     return (
       <Screen maxWidth={560}>
         <Text style={styles.h}>Receipt not found</Text>
-        <Text style={styles.sub}>Open this from a placed order on this device.</Text>
+        <Text style={styles.sub}>{authErr || "Open this from a placed order on this device."}</Text>
         <Btn label="Back" href="/" variant="outline" />
       </Screen>
     );
@@ -61,7 +78,7 @@ export default function OrderInvoice() {
         <Text style={styles.h}>Order invoice</Text>
         {Platform.OS === "web" ? <Btn label="Print" onPress={printReceipt} variant="gold" /> : null}
         <Btn label="Share on WhatsApp" onPress={() => void onShare()} variant="outline" />
-        <Btn label="Back to order" href={`/order/${order.id}` as any} variant="outline" />
+        <Btn label="Back to order" href={`/order/${order.id}?confirm=${encodeURIComponent(order.confirmCode || "")}` as any} variant="outline" />
       </View>
 
       <View style={styles.receipt} accessibilityLabel="Printable receipt">
@@ -76,7 +93,7 @@ export default function OrderInvoice() {
         <Row k="When" v={formatStamp(order.createdAt)} />
         <View style={styles.rule} />
         {order.items.map((line, i) => {
-          const extra = optionBlurb(line.milk, line.extraShot);
+          const extra = optionBlurb(line.milk, line.extraShot, cafe);
           return (
             <View key={`${line.itemId}-${i}`} style={styles.line}>
               <View style={{ flex: 1 }}>

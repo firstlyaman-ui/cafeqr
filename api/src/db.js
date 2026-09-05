@@ -145,6 +145,8 @@ CREATE TABLE IF NOT EXISTS cafes (
   country TEXT DEFAULT 'US',
   tax_name TEXT DEFAULT 'Tax',
   tax_rate REAL DEFAULT 0.08,
+  alt_milk_price REAL,
+  extra_shot_price REAL,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
@@ -224,6 +226,12 @@ function migrate(adapter) {
   }
   if (cafeCols.length && !cafeCols.includes("tax_rate")) {
     adapter.exec("ALTER TABLE cafes ADD COLUMN tax_rate REAL DEFAULT 0.08");
+  }
+  if (cafeCols.length && !cafeCols.includes("alt_milk_price")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN alt_milk_price REAL");
+  }
+  if (cafeCols.length && !cafeCols.includes("extra_shot_price")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN extra_shot_price REAL");
   }
 
   const itemCols = columnNames(adapter, "items");

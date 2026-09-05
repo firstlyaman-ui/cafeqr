@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
@@ -10,21 +10,44 @@ import { useStore } from "@/lib/store";
 import { colors, radius } from "@/lib/theme";
 
 export default function Confirmation() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { orders, cafe, ready } = useStore();
+  const { id, confirm } = useLocalSearchParams<{ id: string; confirm?: string }>();
+  const { orders, cafe, ready, fetchGuestOrder, apiOnline } = useStore();
   const cur = cafe.currency || "USD";
+  const [authErr, setAuthErr] = useState<string | null>(null);
   const order = orders.find((o) => o.id === id);
+
+  useEffect(() => {
+    if (!ready || !id || !apiOnline) return;
+    const code = (typeof confirm === "string" && confirm) || order?.confirmCode || "";
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchGuestOrder(String(id), code || undefined);
+      if (cancelled) return;
+      if (!r.ok && r.status === 401) {
+        setAuthErr("Confirm code required to view this order.");
+      } else if (!r.ok && !order) {
+        setAuthErr(r.error);
+      } else {
+        setAuthErr(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, id, confirm, apiOnline, fetchGuestOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return <Loading />;
   if (!order) {
     return (
       <Screen maxWidth={640}>
         <Text style={styles.h}>Order not found</Text>
-        <Text style={styles.sub}>It may have been cleared from this device.</Text>
+        <Text style={styles.sub}>{authErr || "It may have been cleared from this device."}</Text>
         <Btn label="Back to menu" href={`/c/${cafe.slug || "velvet-bean"}/t/04` as any} />
       </Screen>
     );
   }
+
+  const confQ = order.confirmCode ? `?confirm=${encodeURIComponent(order.confirmCode)}` : "";
 
   return (
     <Screen maxWidth={640}>
@@ -33,6 +56,7 @@ export default function Confirmation() {
       <Text style={styles.sub}>
         {tableLabel(order.table)} · {diningLabel(order.diningOption)} at {cafe.name}. The ticket is on the kitchen board.
       </Text>
+      {authErr ? <Text style={[styles.sub, { color: "#B00020" }]}>{authErr}</Text> : null}
 
       {order.confirmCode ? (
         <View style={styles.codeBox}>
@@ -63,8 +87,8 @@ export default function Confirmation() {
           }}
           variant="gold"
         />
-        <Btn label="Track this order" onPress={() => router.push(`/order/${order.id}` as any)} variant="outline" />
-        <Btn label="Print receipt" href={`/order/${order.id}/invoice` as any} variant="outline" />
+        <Btn label="Track this order" onPress={() => router.push(`/order/${order.id}${confQ}` as any)} variant="outline" />
+        <Btn label="Print receipt" href={`/order/${order.id}/invoice${confQ}` as any} variant="outline" />
         <Btn label="Add more items" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
       </View>
     </Screen>

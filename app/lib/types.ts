@@ -23,6 +23,10 @@ export interface CafeProfile {
   taxName: string;
   /** Fraction, e.g. 0.13 for 13% VAT */
   taxRate: number;
+  /** Alt-milk surcharge (currency units). Defaults by currency if unset. */
+  altMilkPrice: number;
+  /** Extra-shot surcharge (currency units). Defaults by currency if unset. */
+  extraShotPrice: number;
   address: string;
   orderingEnabled: boolean;
 }
@@ -105,8 +109,19 @@ export const COUNTRY_TAX_DEFAULTS: Record<
   IN: { currency: "INR", taxName: "GST", taxRate: 0.05, label: "India" },
   US: { currency: "USD", taxName: "Tax", taxRate: 0.08, label: "United States" },
 };
+/** @deprecated Prefer cafe.extraShotPrice / surchargeFor(currency) */
 export const EXTRA_SHOT_PRICE = 0.75;
+/** @deprecated Prefer cafe.altMilkPrice / surchargeFor(currency) */
 export const ALT_MILK_PRICE = 0.5;
+
+export function surchargeDefaults(currency?: string): { altMilk: number; extraShot: number } {
+  const c = String(currency || "USD").toUpperCase();
+  if (c === "NPR") return { altMilk: 25, extraShot: 40 };
+  if (c === "INR") return { altMilk: 20, extraShot: 30 };
+  return { altMilk: 0.5, extraShot: 0.75 };
+}
+
+/** Demo seed cafes only — new cafes cannot use 1234 via API. */
 export const OWNER_PIN = "1234";
 export const STAFF_PIN = "1234";
 export const MILK_LABELS: Record<MilkOption, string> = {

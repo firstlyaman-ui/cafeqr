@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS cafes (
   country TEXT DEFAULT 'US',
   tax_name TEXT DEFAULT 'Tax',
   tax_rate DOUBLE PRECISION DEFAULT 0.08,
+  alt_milk_price DOUBLE PRECISION,
+  extra_shot_price DOUBLE PRECISION,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
@@ -79,6 +81,8 @@ function normalizeCafe(row) {
     table_count: Number(row.table_count),
     ordering_enabled: Number(row.ordering_enabled),
     tax_rate: row.tax_rate === undefined || row.tax_rate === null ? 0.08 : Number(row.tax_rate),
+    alt_milk_price: row.alt_milk_price === undefined || row.alt_milk_price === null ? null : Number(row.alt_milk_price),
+    extra_shot_price: row.extra_shot_price === undefined || row.extra_shot_price === null ? null : Number(row.extra_shot_price),
     country: row.country || "US",
     tax_name: row.tax_name || "Tax",
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
@@ -139,6 +143,8 @@ class PostgresStore {
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'US'`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS tax_name TEXT DEFAULT 'Tax'`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS tax_rate DOUBLE PRECISION DEFAULT 0.08`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS alt_milk_price DOUBLE PRECISION`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS extra_shot_price DOUBLE PRECISION`,
       `ALTER TABLE items ADD COLUMN IF NOT EXISTS available INTEGER DEFAULT 1`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirm_code TEXT DEFAULT ''`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS dining_option TEXT DEFAULT 'dine_in'`,
@@ -173,8 +179,8 @@ class PostgresStore {
 
   async createCafe(row) {
     await this.query(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, owner_pin, staff_pin, ordering_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [
         row.slug,
         row.name,
@@ -188,6 +194,8 @@ class PostgresStore {
         row.country ?? "US",
         row.tax_name ?? "Tax",
         row.tax_rate ?? 0.08,
+        row.alt_milk_price ?? null,
+        row.extra_shot_price ?? null,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
         row.ordering_enabled ?? 1,
@@ -210,8 +218,10 @@ class PostgresStore {
         country = COALESCE($9, country),
         tax_name = COALESCE($10, tax_name),
         tax_rate = COALESCE($11, tax_rate),
-        ordering_enabled = COALESCE($12, ordering_enabled)
-       WHERE id = $13`,
+        alt_milk_price = COALESCE($12, alt_milk_price),
+        extra_shot_price = COALESCE($13, extra_shot_price),
+        ordering_enabled = COALESCE($14, ordering_enabled)
+       WHERE id = $15`,
       [
         fields.name ?? null,
         fields.tagline ?? null,
@@ -224,6 +234,8 @@ class PostgresStore {
         fields.country ?? null,
         fields.tax_name ?? null,
         fields.tax_rate ?? null,
+        fields.alt_milk_price ?? null,
+        fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
         id,
       ]

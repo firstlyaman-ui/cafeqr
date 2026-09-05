@@ -1,5 +1,6 @@
 const { getStore } = require("./store");
 const { velvetBean, spiceLane, himalayanBeans } = require("./seed-data");
+const { defaultSurcharges } = require("./pricing");
 
 async function insertCafe(store, cafe) {
   const existing = await store.getCafeBySlug(cafe.slug);
@@ -8,6 +9,11 @@ async function insertCafe(store, cafe) {
     return existing.id;
   }
 
+  // Demo seed cafes MAY keep PIN 1234 for Monica's pitch (documented in README).
+  // Optional DEMO_OWNER_PIN / DEMO_STAFF_PIN override applies on seed only.
+  const demoOwner = process.env.DEMO_OWNER_PIN || cafe.owner_pin;
+  const demoStaff = process.env.DEMO_STAFF_PIN || cafe.staff_pin;
+  const sur = defaultSurcharges(cafe.currency);
   const created = await store.createCafe({
     slug: cafe.slug,
     name: cafe.name,
@@ -21,8 +27,10 @@ async function insertCafe(store, cafe) {
     country: cafe.country || "US",
     tax_name: cafe.tax_name || "Tax",
     tax_rate: cafe.tax_rate ?? 0.08,
-    owner_pin: cafe.owner_pin,
-    staff_pin: cafe.staff_pin,
+    alt_milk_price: cafe.alt_milk_price ?? sur.altMilk,
+    extra_shot_price: cafe.extra_shot_price ?? sur.extraShot,
+    owner_pin: demoOwner,
+    staff_pin: demoStaff,
     ordering_enabled: cafe.ordering_enabled === 0 ? 0 : 1,
   });
   const cafeId = created.id;

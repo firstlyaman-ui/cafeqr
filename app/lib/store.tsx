@@ -24,7 +24,7 @@ import type {
   Order,
   OrderStatus,
 } from "./types";
-import { OWNER_PIN, STAFF_PIN } from "./types";
+import { OWNER_PIN, STAFF_PIN, surchargeDefaults } from "./types";
 
 export type StoreResult = { ok: true } | { ok: false; error: string };
 
@@ -77,6 +77,8 @@ function mapApiCafe(c: {
   country?: string;
   taxName?: string;
   taxRate?: number;
+  altMilkPrice?: number;
+  extraShotPrice?: number;
   orderingEnabled?: boolean;
 }): CafeProfile {
   const currency = (c.currency === "INR" || c.currency === "NPR" || c.currency === "USD" ? c.currency : "USD") as CafeProfile["currency"];
@@ -91,6 +93,11 @@ function mapApiCafe(c: {
   const taxName =
     (c.taxName && String(c.taxName).trim()) ||
     (currency === "INR" ? "GST" : currency === "NPR" ? "VAT" : "Tax");
+  const sur = surchargeDefaults(currency);
+  const altMilkPrice =
+    typeof c.altMilkPrice === "number" && Number.isFinite(c.altMilkPrice) ? c.altMilkPrice : sur.altMilk;
+  const extraShotPrice =
+    typeof c.extraShotPrice === "number" && Number.isFinite(c.extraShotPrice) ? c.extraShotPrice : sur.extraShot;
   return {
     slug: c.slug,
     name: c.name,
@@ -104,6 +111,8 @@ function mapApiCafe(c: {
     country: (c.country && String(c.country).toUpperCase()) || (currency === "INR" ? "IN" : currency === "NPR" ? "NP" : "US"),
     taxName,
     taxRate,
+    altMilkPrice,
+    extraShotPrice,
     orderingEnabled: c.orderingEnabled !== false,
   };
 }
@@ -193,6 +202,7 @@ interface Store extends Persist {
     diningOption?: DiningOption;
   }) => Promise<Order | null>;
   setOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
+  fetchGuestOrder: (id: string, confirm?: string) => Promise<{ ok: true; order: Order } | { ok: false; error: string; status?: number }>;
   rejectOrder: (id: string) => Promise<void>;
   verifyOwnerPin: (pin: string) => Promise<boolean>;
   verifyStaffPin: (pin: string) => Promise<boolean>;
@@ -275,6 +285,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             country: "US",
             taxName: "Tax",
             taxRate: 0.08,
+            altMilkPrice: 0.5,
+            extraShotPrice: 0.75,
             orderingEnabled: true,
           },
           [],
@@ -469,12 +481,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const prev = renameTimers.current[id];
         if (prev) clearTimeout(prev);
         delete renameTimers.current[id];
+        // Wait for flush — do not claim ok before API confirms
         return flush();
       }
 
       const prev = renameTimers.current[id];
       if (prev) clearTimeout(prev);
-      // Debounce API writes while typing; resolve immediately so callers are not hung.
+      // Debounced path: UI already updated; callers using immediate:true wait for flush.
       renameTimers.current[id] = setTimeout(() => {
         void flush();
         delete renameTimers.current[id];
@@ -722,7 +735,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             itemId: item.id,
             name: item.name,
             qty: line.qty,
-            unitPrice: lineUnitPrice(item, line.milk, line.extraShot),
+            unitPrice: lineUnitPrice(item, line.milk, line.extraShot, s.cafe),
             milk: line.milk,
             extraShot: line.extraShot,
           };
@@ -800,6 +813,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setOrderStatus = useCallback(async (id: string, status: OrderStatus) => {
+    const prevStatus = stateRef.current.orders.find((o) => o.id === id)?.status;
     patch((s) => ({
       ...s,
       orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)),
@@ -809,9 +823,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await api.patchOrder(stateRef.current.cafeSlug, id, status, staffPinRef.current);
       } catch (e) {
         console.warn(e);
+        if (prevStatus) {
+          patch((s) => ({
+            ...s,
+            orders: s.orders.map((o) => (o.id === id ? { ...o, status: prevStatus } : o)),
+          }));
+        }
       }
     }
   }, [patch]);
+
+
+  const fetchGuestOrder = useCallback(async (id: string, confirm?: string) => {
+    try {
+      const code = confirm || stateRef.current.orders.find((o) => o.id === id)?.confirmCode || "";
+      const raw = await api.getOrder(stateRef.current.cafeSlug, id, { confirm: code || undefined });
+      const order = mapApiOrder(raw);
+      setState((s) => {
+        const others = s.orders.filter((o) => o.id !== order.id);
+        return { ...s, orders: [order, ...others] };
+      });
+      return { ok: true as const, order };
+    } catch (e: any) {
+      const status = typeof e?.status === "number" ? e.status : undefined;
+      return { ok: false as const, error: errMsg(e, status === 401 ? "Confirm code required" : "Could not load order"), status };
+    }
+  }, []);
 
   const rejectOrder = useCallback(async (id: string) => {
     patch((s) => ({ ...s, orders: s.orders.filter((o) => o.id !== id) }));
@@ -882,6 +919,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       setOrderStatus,
+      fetchGuestOrder,
       rejectOrder,
       verifyOwnerPin,
       verifyStaffPin,
@@ -913,6 +951,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       placeOrder,
       setOrderStatus,
+      fetchGuestOrder,
       rejectOrder,
       verifyOwnerPin,
       verifyStaffPin,

@@ -37,6 +37,8 @@ export type ApiCafe = {
   country?: string;
   taxName?: string;
   taxRate?: number;
+  altMilkPrice?: number;
+  extraShotPrice?: number;
   orderingEnabled?: boolean;
 };
 
@@ -90,7 +92,12 @@ const DEFAULT_TIMEOUT_MS = 12000;
 
 async function req<T>(
   path: string,
-  opts: RequestInit & { ownerPin?: string; staffPin?: string; timeoutMs?: number } = {},
+  opts: RequestInit & {
+    ownerPin?: string;
+    staffPin?: string;
+    adminToken?: string;
+    timeoutMs?: number;
+  } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -99,7 +106,8 @@ async function req<T>(
   };
   if (opts.ownerPin) headers["X-Owner-Pin"] = opts.ownerPin;
   if (opts.staffPin) headers["X-Staff-Pin"] = opts.staffPin;
-  const { ownerPin: _o, staffPin: _s, timeoutMs, ...rest } = opts;
+  if (opts.adminToken) headers["X-Admin-Token"] = opts.adminToken;
+  const { ownerPin: _o, staffPin: _s, adminToken: _a, timeoutMs, ...rest } = opts;
 
   const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
   const ms = timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -170,8 +178,8 @@ export function getCafe(slug: string) {
   }>(`/cafes/${encodeURIComponent(slug)}`);
 }
 
-export function createCafe(body: Record<string, unknown>) {
-  return req("/cafes", { method: "POST", body: JSON.stringify(body) });
+export function createCafe(body: Record<string, unknown>, adminToken?: string) {
+  return req("/cafes", { method: "POST", body: JSON.stringify(body), adminToken });
 }
 
 export function patchCafe(slug: string, body: Record<string, unknown>, ownerPin: string) {
@@ -278,6 +286,17 @@ export function deleteOrder(slug: string, id: string, staffPin: string) {
   return req<{ ok: boolean }>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}`, {
     method: "DELETE",
     staffPin,
+  });
+}
+
+export function getOrder(
+  slug: string,
+  id: string,
+  opts: { confirm?: string; staffPin?: string } = {},
+) {
+  const q = opts.confirm ? `?confirm=${encodeURIComponent(opts.confirm)}` : "";
+  return req<any>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}${q}`, {
+    staffPin: opts.staffPin,
   });
 }
 

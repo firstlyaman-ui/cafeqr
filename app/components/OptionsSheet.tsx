@@ -5,7 +5,8 @@ import { Photo, Stepper } from "@/components/ui";
 import { money } from "@/lib/format";
 import { hapticLight } from "@/lib/haptics";
 import { borderWidth, colors, radius, type } from "@/lib/theme";
-import { ALT_MILK_PRICE, EXTRA_SHOT_PRICE, type MenuItem, type MilkOption } from "@/lib/types";
+import { surchargeDefaults, type MenuItem, type MilkOption } from "@/lib/types";
+import { useStore } from "@/lib/store";
 
 function Inner({
   item,
@@ -18,20 +19,25 @@ function Inner({
   onClose: () => void;
   onAdd: (opts: { milk?: MilkOption; extraShot?: boolean }, qty: number) => void;
 }) {
+  const { cafe } = useStore();
   const [milk, setMilk] = useState<MilkOption>("whole");
   const [shot, setShot] = useState(false);
   const [qty, setQty] = useState(1);
+  const sur = surchargeDefaults(cafe?.currency);
+  const altMilk = Number.isFinite(Number(cafe?.altMilkPrice)) ? Number(cafe.altMilkPrice) : sur.altMilk;
+  const extraShot = Number.isFinite(Number(cafe?.extraShotPrice)) ? Number(cafe.extraShotPrice) : sur.extraShot;
+  const cur = cafe?.currency || "USD";
 
   const milks: { id: MilkOption; label: string; extra: number }[] = [
     { id: "whole", label: "Whole", extra: 0 },
-    { id: "oat", label: "Oat", extra: ALT_MILK_PRICE },
-    { id: "almond", label: "Almond", extra: ALT_MILK_PRICE },
+    { id: "oat", label: "Oat", extra: altMilk },
+    { id: "almond", label: "Almond", extra: altMilk },
     { id: "skim", label: "Skim", extra: 0 },
   ];
 
   let unit = item.price;
-  if (item.hasMilk && (milk === "oat" || milk === "almond")) unit += ALT_MILK_PRICE;
-  if (item.hasExtraShot && shot) unit += EXTRA_SHOT_PRICE;
+  if (item.hasMilk && (milk === "oat" || milk === "almond")) unit += altMilk;
+  if (item.hasExtraShot && shot) unit += extraShot;
   const total = unit * qty;
 
   return (
@@ -65,7 +71,7 @@ function Inner({
                 >
                   <Text style={[styles.optT, milk === m.id && { color: colors.white }]}>
                     {m.label}
-                    {m.extra ? ` +${money(m.extra)}` : ""}
+                    {m.extra ? ` +${money(m.extra, cur)}` : ""}
                   </Text>
                 </Pressable>
               ))}
@@ -79,7 +85,7 @@ function Inner({
             style={[styles.shot, shot && { backgroundColor: colors.wash }]}
           >
             <Text style={{ fontWeight: "800", color: colors.ink, letterSpacing: 0.6 }}>EXTRA SHOT</Text>
-            <Text style={{ color: colors.muted, fontWeight: "700" }}>+{money(EXTRA_SHOT_PRICE)}</Text>
+            <Text style={{ color: colors.muted, fontWeight: "700" }}>+{money(extraShot, cur)}</Text>
           </Pressable>
         ) : null}
       </ScrollView>
@@ -107,7 +113,7 @@ function Inner({
         >
           <Text style={styles.addOrderTxt}>ADD TO ORDER</Text>
           <View style={[styles.priceInset, { backgroundColor: accent }]}>
-            <Text style={styles.priceInsetTxt}>{money(total)}</Text>
+            <Text style={styles.priceInsetTxt}>{money(total, cur)}</Text>
           </View>
         </Pressable>
       </View>

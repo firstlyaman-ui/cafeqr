@@ -1,6 +1,7 @@
 import {
   ALT_MILK_PRICE,
   EXTRA_SHOT_PRICE,
+  surchargeDefaults,
   type CartLine,
   type CafeProfile,
   type MenuItem,
@@ -77,17 +78,32 @@ export function padTable(id: string): string {
   return String(id).replace(/\D/g, "").padStart(2, "0") || "01";
 }
 
-export function lineUnitPrice(item: MenuItem, milk?: MilkOption, extraShot?: boolean): number {
+export function lineUnitPrice(
+  item: MenuItem,
+  milk?: MilkOption,
+  extraShot?: boolean,
+  cafe?: Pick<CafeProfile, "currency" | "altMilkPrice" | "extraShotPrice"> | string,
+): number {
+  const currency = typeof cafe === "string" ? cafe : cafe?.currency;
+  const defaults = surchargeDefaults(currency);
+  const alt =
+    typeof cafe === "object" && cafe && Number.isFinite(Number(cafe.altMilkPrice))
+      ? Number(cafe.altMilkPrice)
+      : defaults.altMilk;
+  const shot =
+    typeof cafe === "object" && cafe && Number.isFinite(Number(cafe.extraShotPrice))
+      ? Number(cafe.extraShotPrice)
+      : defaults.extraShot;
   let p = item.price;
-  if (milk === "oat" || milk === "almond") p += ALT_MILK_PRICE;
-  if (extraShot) p += EXTRA_SHOT_PRICE;
+  if (milk === "oat" || milk === "almond") p += alt;
+  if (extraShot) p += shot;
   return p;
 }
 
 export function cartTotals(
   lines: CartLine[],
   items: MenuItem[],
-  cafeOrCurrency?: Pick<CafeProfile, "currency" | "taxRate" | "taxName"> | string,
+  cafeOrCurrency?: Pick<CafeProfile, "currency" | "taxRate" | "taxName" | "altMilkPrice" | "extraShotPrice"> | string,
 ) {
   const cafe =
     typeof cafeOrCurrency === "string" || cafeOrCurrency === undefined
@@ -104,7 +120,7 @@ export function cartTotals(
   const subtotal = lines.reduce((sum, line) => {
     const item = items.find((i) => i.id === line.itemId);
     if (!item) return sum;
-    return sum + lineUnitPrice(item, line.milk, line.extraShot) * line.qty;
+    return sum + lineUnitPrice(item, line.milk, line.extraShot, cafe) * line.qty;
   }, 0);
   const roundedSub = Math.round(subtotal * 100) / 100;
   const tax = Math.round(roundedSub * rate * 100) / 100;
@@ -132,18 +148,27 @@ export function cartTotals(
   };
 }
 
-export function optionBlurb(milk?: MilkOption, extraShot?: boolean): string {
+export function optionBlurb(
+  milk?: MilkOption,
+  extraShot?: boolean,
+  cafe?: Pick<CafeProfile, "currency" | "altMilkPrice" | "extraShotPrice">,
+): string {
   const bits: string[] = [];
+  const defaults = surchargeDefaults(cafe?.currency);
+  const alt = cafe && Number.isFinite(Number(cafe.altMilkPrice)) ? Number(cafe.altMilkPrice) : defaults.altMilk;
+  const shot =
+    cafe && Number.isFinite(Number(cafe.extraShotPrice)) ? Number(cafe.extraShotPrice) : defaults.extraShot;
+  const cur = cafe?.currency || "USD";
   if (milk) {
     const labels: Record<MilkOption, string> = {
       whole: "Whole",
-      oat: "Oat +$0.50",
-      almond: "Almond +$0.50",
+      oat: `Oat +${money(alt, cur)}`,
+      almond: `Almond +${money(alt, cur)}`,
       skim: "Skim",
     };
     bits.push(labels[milk]);
   }
-  if (extraShot) bits.push("Extra shot +$0.75");
+  if (extraShot) bits.push(`Extra shot +${money(shot, cur)}`);
   return bits.join(" · ");
 }
 
