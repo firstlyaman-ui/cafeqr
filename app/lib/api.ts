@@ -17,6 +17,9 @@ export type ApiCafeListItem = {
   name: string;
   tagline: string;
   currency?: string;
+  country?: string;
+  taxName?: string;
+  taxRate?: number;
   accentColor?: string;
 };
 
@@ -31,6 +34,9 @@ export type ApiCafe = {
   tableCount: number;
   cashOnly: boolean;
   currency: string;
+  country?: string;
+  taxName?: string;
+  taxRate?: number;
   orderingEnabled?: boolean;
 };
 

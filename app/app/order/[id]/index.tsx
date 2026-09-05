@@ -3,7 +3,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
-import { money, statusLabel, tableLabel, waitCopy } from "@/lib/format";
+import { isGstSplit, money, statusLabel, tableLabel, taxLabel, waitCopy } from "@/lib/format";
 import { hapticMedium } from "@/lib/haptics";
 import { diningLabel, shareReceipt } from "@/lib/share";
 import { useStore } from "@/lib/store";
@@ -74,18 +74,31 @@ export default function OrderStatusScreen() {
             <Text style={{ fontWeight: "800" }}>{money(line.unitPrice * line.qty, cur)}</Text>
           </View>
         ))}
-        {cur === "INR" && order.tax > 0 ? (
-          <>
+        {(() => {
+          const name = order.taxName || cafe.taxName || "Tax";
+          const rate = cafe.taxRate;
+          if (!(order.tax > 0)) return null;
+          if (isGstSplit(name, rate)) {
+            return (
+              <>
+                <View style={styles.row}>
+                  <Text style={{ color: colors.muted }}>CGST 2.5%</Text>
+                  <Text>{money(half, cur)}</Text>
+                </View>
+                <View style={styles.row}>
+                  <Text style={{ color: colors.muted }}>SGST 2.5%</Text>
+                  <Text>{money(order.tax - half, cur)}</Text>
+                </View>
+              </>
+            );
+          }
+          return (
             <View style={styles.row}>
-              <Text style={{ color: colors.muted }}>CGST 2.5%</Text>
-              <Text>{money(half, cur)}</Text>
+              <Text style={{ color: colors.muted }}>{taxLabel(name, rate)}</Text>
+              <Text>{money(order.tax, cur)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={{ color: colors.muted }}>SGST 2.5%</Text>
-              <Text>{money(order.tax - half, cur)}</Text>
-            </View>
-          </>
-        ) : null}
+          );
+        })()}
         {order.notes ? <Text style={{ color: colors.muted, marginTop: 8 }}>Note: {order.notes}</Text> : null}
       </View>
 

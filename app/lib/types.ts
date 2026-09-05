@@ -6,7 +6,7 @@ export type OrderStatus = "new" | "preparing" | "ready" | "paid";
 
 export type DietaryFilter = "all" | "veg" | "vegan" | "gf";
 
-export type CurrencyCode = "USD" | "INR";
+export type CurrencyCode = "USD" | "INR" | "NPR";
 
 export type DiningOption = "dine_in" | "takeaway";
 
@@ -19,6 +19,10 @@ export interface CafeProfile {
   tableCount: number;
   cashOnly: boolean;
   currency: CurrencyCode;
+  country: string;
+  taxName: string;
+  /** Fraction, e.g. 0.13 for 13% VAT */
+  taxRate: number;
   address: string;
   orderingEnabled: boolean;
 }
@@ -75,6 +79,8 @@ export interface Order {
   items: OrderLine[];
   subtotal: number;
   tax: number;
+  /** Snapshot of cafe tax label at order time */
+  taxName?: string;
   total: number;
   status: OrderStatus;
   createdAt: number;
@@ -84,9 +90,21 @@ export interface Order {
   diningOption: DiningOption;
 }
 
+/** @deprecated Prefer cafe.taxRate */
 export const TAX_RATE = 0.08;
-/** Demo GST for INR cafes (shown as CGST 2.5% + SGST 2.5%). */
+/** @deprecated Prefer cafe.taxRate */
 export const INR_GST_RATE = 0.05;
+
+export type CountryCode = "NP" | "IN" | "US";
+
+export const COUNTRY_TAX_DEFAULTS: Record<
+  CountryCode,
+  { currency: CurrencyCode; taxName: string; taxRate: number; label: string }
+> = {
+  NP: { currency: "NPR", taxName: "VAT", taxRate: 0.13, label: "Nepal" },
+  IN: { currency: "INR", taxName: "GST", taxRate: 0.05, label: "India" },
+  US: { currency: "USD", taxName: "Tax", taxRate: 0.08, label: "United States" },
+};
 export const EXTRA_SHOT_PRICE = 0.75;
 export const ALT_MILK_PRICE = 0.5;
 export const OWNER_PIN = "1234";

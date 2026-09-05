@@ -142,6 +142,9 @@ CREATE TABLE IF NOT EXISTS cafes (
   table_count INTEGER DEFAULT 8,
   cash_only INTEGER DEFAULT 1,
   currency TEXT DEFAULT 'USD',
+  country TEXT DEFAULT 'US',
+  tax_name TEXT DEFAULT 'Tax',
+  tax_rate REAL DEFAULT 0.08,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
@@ -183,6 +186,7 @@ CREATE TABLE IF NOT EXISTS orders (
   items TEXT NOT NULL,
   subtotal REAL NOT NULL,
   tax REAL NOT NULL,
+  tax_name TEXT DEFAULT '',
   total REAL NOT NULL,
   status TEXT DEFAULT 'new',
   estimated_wait INTEGER DEFAULT 5,
@@ -212,6 +216,15 @@ function migrate(adapter) {
   if (cafeCols.length && !cafeCols.includes("ordering_enabled")) {
     adapter.exec("ALTER TABLE cafes ADD COLUMN ordering_enabled INTEGER DEFAULT 1");
   }
+  if (cafeCols.length && !cafeCols.includes("country")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN country TEXT DEFAULT 'US'");
+  }
+  if (cafeCols.length && !cafeCols.includes("tax_name")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN tax_name TEXT DEFAULT 'Tax'");
+  }
+  if (cafeCols.length && !cafeCols.includes("tax_rate")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN tax_rate REAL DEFAULT 0.08");
+  }
 
   const itemCols = columnNames(adapter, "items");
   if (itemCols.length && !itemCols.includes("available")) {
@@ -225,6 +238,15 @@ function migrate(adapter) {
   if (orderCols.length && !orderCols.includes("dining_option")) {
     adapter.exec("ALTER TABLE orders ADD COLUMN dining_option TEXT DEFAULT 'dine_in'");
   }
+  if (orderCols.length && !orderCols.includes("tax_name")) {
+    adapter.exec("ALTER TABLE orders ADD COLUMN tax_name TEXT DEFAULT ''");
+  }
+
+  // Backfill tax defaults from currency when missing / legacy rows
+  try {
+    adapter.exec(`UPDATE cafes SET country = 'IN', tax_name = 'GST', tax_rate = 0.05 WHERE currency = 'INR' AND (country IS NULL OR country = '' OR country = 'US') AND (tax_name IS NULL OR tax_name = '' OR tax_name = 'Tax')`);
+    adapter.exec(`UPDATE cafes SET country = 'NP', tax_name = 'VAT', tax_rate = 0.13 WHERE currency = 'NPR'`);
+  } catch (_) {}
 }
 
 let adapter = null;

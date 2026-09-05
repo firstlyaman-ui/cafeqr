@@ -19,7 +19,7 @@ class SqliteStore {
 
   async listCafes() {
     return this.db
-      .prepare("SELECT slug, name, tagline, currency, accent_color FROM cafes ORDER BY name")
+      .prepare("SELECT slug, name, tagline, currency, country, tax_name, tax_rate, accent_color FROM cafes ORDER BY name")
       .all();
   }
 
@@ -30,8 +30,8 @@ class SqliteStore {
   async createCafe(row) {
     this.db
       .prepare(
-        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, owner_pin, staff_pin, ordering_enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, owner_pin, staff_pin, ordering_enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.slug,
@@ -43,6 +43,9 @@ class SqliteStore {
         row.table_count ?? 8,
         row.cash_only ?? 1,
         row.currency ?? "USD",
+        row.country ?? "US",
+        row.tax_name ?? "Tax",
+        row.tax_rate ?? 0.08,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
         row.ordering_enabled ?? 1
@@ -62,6 +65,9 @@ class SqliteStore {
           table_count = COALESCE(?, table_count),
           cash_only = COALESCE(?, cash_only),
           currency = COALESCE(?, currency),
+          country = COALESCE(?, country),
+          tax_name = COALESCE(?, tax_name),
+          tax_rate = COALESCE(?, tax_rate),
           ordering_enabled = COALESCE(?, ordering_enabled)
          WHERE id = ?`
       )
@@ -74,6 +80,9 @@ class SqliteStore {
         fields.table_count ?? null,
         fields.cash_only ?? null,
         fields.currency ?? null,
+        fields.country ?? null,
+        fields.tax_name ?? null,
+        fields.tax_rate ?? null,
         fields.ordering_enabled ?? null,
         id
       );
@@ -213,8 +222,8 @@ class SqliteStore {
   async createOrder(row) {
     this.db
       .prepare(
-        `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, tax_name, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -226,6 +235,7 @@ class SqliteStore {
         typeof row.items === "string" ? row.items : JSON.stringify(row.items || []),
         row.subtotal,
         row.tax,
+        row.tax_name ?? "",
         row.total,
         row.status ?? "new",
         row.estimated_wait ?? 5,

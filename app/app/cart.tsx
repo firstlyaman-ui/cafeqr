@@ -3,13 +3,14 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Empty, Screen } from "@/components/ui";
-import { cartTotals, lineUnitPrice, money, optionBlurb, tableLabel } from "@/lib/format";
+import { cartTotals, lineUnitPrice, money, optionBlurb, tableLabel, taxLabel } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { colors, type } from "@/lib/theme";
 
 export default function Cart() {
   const { cart, items, cafe, cartTable, setQty, removeLine } = useStore();
-  const totals = cartTotals(cart, items);
+  const totals = cartTotals(cart, items, cafe);
+  const cur = cafe.currency || "USD";
   const table = cartTable || "04";
 
   return (
@@ -35,7 +36,7 @@ export default function Cart() {
                   {optionBlurb(line.milk, line.extraShot) ? (
                     <Text style={styles.opt}>{optionBlurb(line.milk, line.extraShot)}</Text>
                   ) : null}
-                  <Text style={styles.price}>{money(unit)} each</Text>
+                  <Text style={styles.price}>{money(unit, cur)} each</Text>
                 </View>
                 <View style={styles.qty}>
                   <Pressable onPress={() => setQty(line.lineId, line.qty - 1)} style={styles.qbtn} accessibilityLabel="Decrease quantity">
@@ -54,9 +55,9 @@ export default function Cart() {
           })}
 
           <View style={styles.sums}>
-            <Line k="Subtotal" v={money(totals.subtotal)} />
-            <Line k="Tax 8%" v={money(totals.tax)} />
-            <Line k="Total" v={money(totals.total)} bold />
+            <Line k="Subtotal" v={money(totals.subtotal, cur)} />
+            {totals.tax > 0 ? <Line k={taxLabel(totals.taxName, totals.taxRate)} v={money(totals.tax, cur)} /> : null}
+            <Line k="Total" v={money(totals.total, cur)} bold />
           </View>
           {cafe.cashOnly ? (
             <Text style={styles.cash}>Cash at the counter — no card on this table.</Text>

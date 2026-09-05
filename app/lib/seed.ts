@@ -9,6 +9,9 @@ export const demoCafe: CafeProfile = {
   tableCount: 12,
   cashOnly: true,
   currency: "USD",
+  country: "US",
+  taxName: "Tax",
+  taxRate: 0.08,
   address: "42 Blossom Lane, Corner Bistro Plaza",
   orderingEnabled: true,
 };

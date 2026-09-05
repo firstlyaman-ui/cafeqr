@@ -1,9 +1,8 @@
 import {
   ALT_MILK_PRICE,
   EXTRA_SHOT_PRICE,
-  INR_GST_RATE,
-  TAX_RATE,
   type CartLine,
+  type CafeProfile,
   type MenuItem,
   type MilkOption,
   type OrderStatus,
@@ -11,11 +10,38 @@ import {
 
 export function money(n: number, currency: string = "USD"): string {
   const v = Number.isFinite(n) ? n : 0;
-  if (currency === "INR") {
-    if (Number.isInteger(v)) return `₹${v}`;
-    return `₹${v.toFixed(2)}`;
+  const code = String(currency || "USD").toUpperCase();
+  try {
+    if (code === "NPR") {
+      return Number.isInteger(v) ? `Rs ${v}` : `Rs ${v.toFixed(2)}`;
+    }
+    if (code === "INR") {
+      return Number.isInteger(v) ? `₹${v}` : `₹${v.toFixed(2)}`;
+    }
+    if (code === "USD") {
+      return `$${v.toFixed(2)}`;
+    }
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(v);
+  } catch {
+    return `${code} ${v.toFixed(2)}`;
   }
-  return `$${v.toFixed(2)}`;
+}
+
+/** "VAT (13%)" / "GST (5%)" / "Tax (8%)" */
+export function taxLabel(taxName?: string, taxRate?: number): string {
+  const name = (taxName || "Tax").trim() || "Tax";
+  const rate = Number(taxRate);
+  if (!Number.isFinite(rate) || rate <= 0) return name;
+  const pct = Math.round(rate * 10000) / 100;
+  const pctStr = Number.isInteger(pct) ? String(pct) : String(pct);
+  return `${name} (${pctStr}%)`;
+}
+
+/** Optional India GST split when name is GST and rate is 5%. */
+export function isGstSplit(taxName?: string, taxRate?: number): boolean {
+  const name = String(taxName || "").trim().toUpperCase();
+  const rate = Number(taxRate);
+  return name === "GST" && Number.isFinite(rate) && Math.abs(rate - 0.05) < 0.0001;
 }
 
 /** Parse price / prep fields without NaN mid-edit. */
@@ -58,14 +84,29 @@ export function lineUnitPrice(item: MenuItem, milk?: MilkOption, extraShot?: boo
   return p;
 }
 
-export function cartTotals(lines: CartLine[], items: MenuItem[], currency: string = "USD") {
+export function cartTotals(
+  lines: CartLine[],
+  items: MenuItem[],
+  cafeOrCurrency?: Pick<CafeProfile, "currency" | "taxRate" | "taxName"> | string,
+) {
+  const cafe =
+    typeof cafeOrCurrency === "string" || cafeOrCurrency === undefined
+      ? {
+          currency: (typeof cafeOrCurrency === "string" ? cafeOrCurrency : "USD") as string,
+          taxRate: cafeOrCurrency === "INR" ? 0.05 : cafeOrCurrency === "NPR" ? 0.13 : 0.08,
+          taxName: cafeOrCurrency === "INR" ? "GST" : cafeOrCurrency === "NPR" ? "VAT" : "Tax",
+        }
+      : cafeOrCurrency;
+  const currency = cafe.currency || "USD";
+  const rate = Number.isFinite(Number(cafe.taxRate)) ? Number(cafe.taxRate) : 0.08;
+  const taxName = cafe.taxName || "Tax";
+
   const subtotal = lines.reduce((sum, line) => {
     const item = items.find((i) => i.id === line.itemId);
     if (!item) return sum;
     return sum + lineUnitPrice(item, line.milk, line.extraShot) * line.qty;
   }, 0);
   const roundedSub = Math.round(subtotal * 100) / 100;
-  const rate = currency === "INR" ? INR_GST_RATE : TAX_RATE;
   const tax = Math.round(roundedSub * rate * 100) / 100;
   const total = Math.round((roundedSub + tax) * 100) / 100;
   const count = lines.reduce((n, l) => n + l.qty, 0);
@@ -73,9 +114,22 @@ export function cartTotals(lines: CartLine[], items: MenuItem[], currency: strin
     const item = items.find((i) => i.id === line.itemId);
     return Math.max(max, item ? item.prepMinutes : 0);
   }, 0);
-  const cgst = currency === "INR" ? Math.round((tax / 2) * 100) / 100 : 0;
-  const sgst = currency === "INR" ? Math.round((tax - cgst) * 100) / 100 : 0;
-  return { subtotal: roundedSub, tax, total, count, wait, cgst, sgst, gstRate: rate };
+  const split = isGstSplit(taxName, rate);
+  const cgst = split ? Math.round((tax / 2) * 100) / 100 : 0;
+  const sgst = split ? Math.round((tax - cgst) * 100) / 100 : 0;
+  return {
+    subtotal: roundedSub,
+    tax,
+    total,
+    count,
+    wait,
+    cgst,
+    sgst,
+    taxRate: rate,
+    taxName,
+    gstRate: rate,
+    currency,
+  };
 }
 
 export function optionBlurb(milk?: MilkOption, extraShot?: boolean): string {

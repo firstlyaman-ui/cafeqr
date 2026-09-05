@@ -10,7 +10,7 @@ import { hapticError, hapticSuccess } from "@/lib/haptics";
 import { qrDataUri } from "@/lib/qr";
 import { emptyItem, useStore } from "@/lib/store";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
-import { OWNER_PIN, type DietaryTag, type MenuItem } from "@/lib/types";
+import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem } from "@/lib/types";
 
 const TAGS: DietaryTag[] = ["popular", "veg", "vegan", "gf"];
 const DEFAULT_IMAGE =
@@ -60,6 +60,12 @@ export default function Owner() {
   const [tables, setTables] = useState(String(cafe.tableCount));
   const [cash, setCash] = useState(cafe.cashOnly);
   const [orderingOn, setOrderingOn] = useState(cafe.orderingEnabled !== false);
+  const [country, setCountry] = useState((cafe.country || "US").toUpperCase());
+  const [currency, setCurrency] = useState(cafe.currency || "USD");
+  const [taxName, setTaxName] = useState(cafe.taxName || "Tax");
+  const [taxPct, setTaxPct] = useState(
+    String(Math.round((Number(cafe.taxRate) || 0.08) * 10000) / 100),
+  );
   const [accent, setAccent] = useState(cafe.accentColor);
   const [catName, setCatName] = useState("");
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -95,6 +101,10 @@ export default function Owner() {
     setTables(String(cafe.tableCount));
     setCash(cafe.cashOnly);
     setOrderingOn(cafe.orderingEnabled !== false);
+    setCountry((cafe.country || "US").toUpperCase());
+    setCurrency(cafe.currency || "USD");
+    setTaxName(cafe.taxName || "Tax");
+    setTaxPct(String(Math.round((Number(cafe.taxRate) || 0.08) * 10000) / 100));
     setAccent(cafe.accentColor);
   }, [cafe]);
 
@@ -144,6 +154,8 @@ export default function Owner() {
   const saveProfile = async () => {
     setBusy(true);
     try {
+      const pct = parseMoneyInput(taxPct);
+      const rate = Math.min(1, Math.max(0, pct / 100));
       const r = await saveCafe({
         name: name.trim() || cafe.name,
         tagline,
@@ -153,6 +165,10 @@ export default function Owner() {
         tableCount: Math.max(1, Math.min(24, parseIntInput(tables, 1) || 1)),
         cashOnly: cash,
         orderingEnabled: orderingOn,
+        country: country.trim().toUpperCase() || "US",
+        currency: (currency.trim().toUpperCase() || "USD") as any,
+        taxName: taxName.trim() || "Tax",
+        taxRate: rate,
       });
       if (r.ok) flashMsg("ok", apiOnline ? "Café profile saved." : "Saved locally (API offline).");
       else flashMsg("err", r.error);
@@ -340,6 +356,67 @@ export default function Owner() {
             on={orderingOn}
             onPress={() => setOrderingOn((v) => !v)}
           />
+          <Text style={styles.lbl}>Country (tax defaults)</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(Object.keys(COUNTRY_TAX_DEFAULTS) as CountryCode[]).map((code) => (
+              <Chip
+                key={code}
+                label={`${code} · ${COUNTRY_TAX_DEFAULTS[code].label}`}
+                active={country === code}
+                onPress={() => {
+                  const apply = () => {
+                    const d = COUNTRY_TAX_DEFAULTS[code];
+                    setCountry(code);
+                    setCurrency(d.currency);
+                    setTaxName(d.taxName);
+                    setTaxPct(String(Math.round(d.taxRate * 10000) / 100));
+                  };
+                  const msg =
+                    "Apply " +
+                    COUNTRY_TAX_DEFAULTS[code].label +
+                    " defaults (currency " +
+                    COUNTRY_TAX_DEFAULTS[code].currency +
+                    ", " +
+                    COUNTRY_TAX_DEFAULTS[code].taxName +
+                    " " +
+                    Math.round(COUNTRY_TAX_DEFAULTS[code].taxRate * 100) +
+                    "%)? Menu prices stay unchanged.";
+                  if (Platform.OS === "web" && typeof window !== "undefined") {
+                    if (window.confirm(msg)) apply();
+                    else setCountry(code);
+                  } else {
+                    Alert.alert("Country defaults", msg, [
+                      { text: "Country only", onPress: () => setCountry(code) },
+                      { text: "Apply defaults", onPress: apply },
+                    ]);
+                  }
+                }}
+              />
+            ))}
+          </View>
+          <Field
+            label="Country code"
+            value={country}
+            onChangeText={(v) => setCountry(v.toUpperCase())}
+            placeholder="NP / IN / US"
+          />
+          <Field
+            label="Currency"
+            value={currency}
+            onChangeText={(v) => setCurrency(v.toUpperCase())}
+            placeholder="NPR / INR / USD"
+          />
+          <Field label="Tax name" value={taxName} onChangeText={setTaxName} placeholder="VAT / GST / Tax" />
+          <Field
+            label="Tax rate (%)"
+            value={taxPct}
+            onChangeText={setTaxPct}
+            placeholder="13"
+            keyboardType="decimal-pad"
+          />
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Nepal: country NP → NPR + VAT 13%. Prices stay as you set them; only tax/currency labels change.
+          </Text>
           <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
         </View>
 

@@ -50,7 +50,7 @@ export default function CafeTableMenu() {
 
   const welcomed = guest.welcomedTables.includes(`${slug}:${table}`);
   const accent = cafe.accentColor || colors.gold;
-  const totals = cartTotals(cart, items, cafe.currency || "USD");
+  const totals = cartTotals(cart, items, cafe);
   const letter = (cafe.name[0] || "C").toUpperCase();
   const cur = cafe.currency || "USD";
 

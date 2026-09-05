@@ -1,5 +1,5 @@
 const { getStore } = require("./store");
-const { velvetBean, spiceLane } = require("./seed-data");
+const { velvetBean, spiceLane, himalayanBeans } = require("./seed-data");
 
 async function insertCafe(store, cafe) {
   const existing = await store.getCafeBySlug(cafe.slug);
@@ -18,6 +18,9 @@ async function insertCafe(store, cafe) {
     table_count: cafe.table_count,
     cash_only: cafe.cash_only,
     currency: cafe.currency,
+    country: cafe.country || "US",
+    tax_name: cafe.tax_name || "Tax",
+    tax_rate: cafe.tax_rate ?? 0.08,
     owner_pin: cafe.owner_pin,
     staff_pin: cafe.staff_pin,
     ordering_enabled: cafe.ordering_enabled === 0 ? 0 : 1,
@@ -58,6 +61,7 @@ async function insertCafe(store, cafe) {
       items: o.items,
       subtotal: o.subtotal,
       tax: o.tax,
+      tax_name: o.tax_name || cafe.tax_name || "",
       total: o.total,
       status: o.status,
       estimated_wait: o.estimated_wait,
@@ -74,7 +78,14 @@ async function insertCafe(store, cafe) {
 
 async function resetCafe(slug) {
   const store = await getStore();
-  const cafeData = slug === velvetBean.slug ? velvetBean : slug === spiceLane.slug ? spiceLane : null;
+  const cafeData =
+    slug === velvetBean.slug
+      ? velvetBean
+      : slug === spiceLane.slug
+        ? spiceLane
+        : slug === himalayanBeans.slug
+          ? himalayanBeans
+          : null;
   if (!cafeData) {
     const err = new Error("Unknown demo cafe");
     err.status = 404;
@@ -93,6 +104,7 @@ async function seed() {
   const store = await getStore();
   await insertCafe(store, velvetBean);
   await insertCafe(store, spiceLane);
+  await insertCafe(store, himalayanBeans);
   const count = await store.countCafes();
   console.log(`[seed] cafes in db: ${count} (driver=${store.driver})`);
 }

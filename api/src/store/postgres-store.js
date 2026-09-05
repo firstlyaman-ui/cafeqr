@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS cafes (
   table_count INTEGER DEFAULT 8,
   cash_only INTEGER DEFAULT 1,
   currency TEXT DEFAULT 'USD',
+  country TEXT DEFAULT 'US',
+  tax_name TEXT DEFAULT 'Tax',
+  tax_rate DOUBLE PRECISION DEFAULT 0.08,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
@@ -53,6 +56,7 @@ CREATE TABLE IF NOT EXISTS orders (
   items TEXT NOT NULL,
   subtotal DOUBLE PRECISION NOT NULL,
   tax DOUBLE PRECISION NOT NULL,
+  tax_name TEXT DEFAULT '',
   total DOUBLE PRECISION NOT NULL,
   status TEXT DEFAULT 'new',
   estimated_wait INTEGER DEFAULT 5,
@@ -74,6 +78,9 @@ function normalizeCafe(row) {
     cash_only: Number(row.cash_only),
     table_count: Number(row.table_count),
     ordering_enabled: Number(row.ordering_enabled),
+    tax_rate: row.tax_rate === undefined || row.tax_rate === null ? 0.08 : Number(row.tax_rate),
+    country: row.country || "US",
+    tax_name: row.tax_name || "Tax",
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
   };
 }
@@ -97,6 +104,7 @@ function normalizeOrder(row) {
     ...row,
     subtotal: Number(row.subtotal),
     tax: Number(row.tax),
+    tax_name: row.tax_name || "",
     total: Number(row.total),
     estimated_wait: Number(row.estimated_wait),
     created_at: Number(row.created_at),
@@ -128,20 +136,32 @@ class PostgresStore {
     // Additive column safety for older Neon DBs created mid-upgrade
     const alters = [
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS ordering_enabled INTEGER DEFAULT 1`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'US'`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS tax_name TEXT DEFAULT 'Tax'`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS tax_rate DOUBLE PRECISION DEFAULT 0.08`,
       `ALTER TABLE items ADD COLUMN IF NOT EXISTS available INTEGER DEFAULT 1`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirm_code TEXT DEFAULT ''`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS dining_option TEXT DEFAULT 'dine_in'`,
+      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_name TEXT DEFAULT ''`,
     ];
     for (const sql of alters) {
       try {
         await this.query(sql);
       } catch (_) {}
     }
+    try {
+      await this.query(
+        `UPDATE cafes SET country = 'IN', tax_name = 'GST', tax_rate = 0.05
+         WHERE currency = 'INR' AND (country IS NULL OR country = '' OR country = 'US')
+           AND (tax_name IS NULL OR tax_name = '' OR tax_name = 'Tax')`
+      );
+      await this.query(`UPDATE cafes SET country = 'NP', tax_name = 'VAT', tax_rate = 0.13 WHERE currency = 'NPR'`);
+    } catch (_) {}
   }
 
   async listCafes() {
     const { rows } = await this.query(
-      "SELECT slug, name, tagline, currency, accent_color FROM cafes ORDER BY name"
+      "SELECT slug, name, tagline, currency, country, tax_name, tax_rate, accent_color FROM cafes ORDER BY name"
     );
     return rows;
   }
@@ -153,8 +173,8 @@ class PostgresStore {
 
   async createCafe(row) {
     await this.query(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, owner_pin, staff_pin, ordering_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, owner_pin, staff_pin, ordering_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [
         row.slug,
         row.name,
@@ -165,6 +185,9 @@ class PostgresStore {
         row.table_count ?? 8,
         row.cash_only ?? 1,
         row.currency ?? "USD",
+        row.country ?? "US",
+        row.tax_name ?? "Tax",
+        row.tax_rate ?? 0.08,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
         row.ordering_enabled ?? 1,
@@ -184,8 +207,11 @@ class PostgresStore {
         table_count = COALESCE($6, table_count),
         cash_only = COALESCE($7, cash_only),
         currency = COALESCE($8, currency),
-        ordering_enabled = COALESCE($9, ordering_enabled)
-       WHERE id = $10`,
+        country = COALESCE($9, country),
+        tax_name = COALESCE($10, tax_name),
+        tax_rate = COALESCE($11, tax_rate),
+        ordering_enabled = COALESCE($12, ordering_enabled)
+       WHERE id = $13`,
       [
         fields.name ?? null,
         fields.tagline ?? null,
@@ -195,6 +221,9 @@ class PostgresStore {
         fields.table_count ?? null,
         fields.cash_only ?? null,
         fields.currency ?? null,
+        fields.country ?? null,
+        fields.tax_name ?? null,
+        fields.tax_rate ?? null,
         fields.ordering_enabled ?? null,
         id,
       ]
@@ -356,8 +385,8 @@ class PostgresStore {
 
   async createOrder(row) {
     await this.query(
-      `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, tax_name, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [
         row.id,
         row.cafe_id,
@@ -368,6 +397,7 @@ class PostgresStore {
         typeof row.items === "string" ? row.items : JSON.stringify(row.items || []),
         row.subtotal,
         row.tax,
+        row.tax_name ?? "",
         row.total,
         row.status ?? "new",
         row.estimated_wait ?? 5,

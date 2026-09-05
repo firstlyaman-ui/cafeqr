@@ -74,8 +74,23 @@ function mapApiCafe(c: {
   tableCount: number;
   cashOnly: boolean;
   currency: string;
+  country?: string;
+  taxName?: string;
+  taxRate?: number;
   orderingEnabled?: boolean;
 }): CafeProfile {
+  const currency = (c.currency === "INR" || c.currency === "NPR" || c.currency === "USD" ? c.currency : "USD") as CafeProfile["currency"];
+  const taxRate =
+    typeof c.taxRate === "number" && Number.isFinite(c.taxRate)
+      ? c.taxRate
+      : currency === "INR"
+        ? 0.05
+        : currency === "NPR"
+          ? 0.13
+          : 0.08;
+  const taxName =
+    (c.taxName && String(c.taxName).trim()) ||
+    (currency === "INR" ? "GST" : currency === "NPR" ? "VAT" : "Tax");
   return {
     slug: c.slug,
     name: c.name,
@@ -85,7 +100,10 @@ function mapApiCafe(c: {
     address: c.address,
     tableCount: c.tableCount,
     cashOnly: c.cashOnly,
-    currency: (c.currency === "INR" ? "INR" : "USD") as CafeProfile["currency"],
+    currency,
+    country: (c.country && String(c.country).toUpperCase()) || (currency === "INR" ? "IN" : currency === "NPR" ? "NP" : "US"),
+    taxName,
+    taxRate,
     orderingEnabled: c.orderingEnabled !== false,
   };
 }
@@ -135,6 +153,7 @@ function mapApiOrder(o: any): Order {
     payCash: o.payCash !== false,
     confirmCode: o.confirmCode || "",
     diningOption: o.diningOption === "takeaway" ? "takeaway" : "dine_in",
+    taxName: o.taxName || "",
   };
 }
 
@@ -253,6 +272,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             tableCount: 8,
             cashOnly: true,
             currency: "USD",
+            country: "US",
+            taxName: "Tax",
+            taxRate: 0.08,
             orderingEnabled: true,
           },
           [],
@@ -650,7 +672,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return item && item.available !== false;
       });
       if (!sellable.length) return null;
-      const totals = cartTotals(sellable, s.items, s.cafe.currency);
+      const totals = cartTotals(sellable, s.items, s.cafe);
       const items = sellable
         .map((line) => {
           const item = s.items.find((i) => i.id === line.itemId);
@@ -678,6 +700,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         items,
         subtotal: totals.subtotal,
         tax: totals.tax,
+        taxName: s.cafe.taxName || totals.taxName,
         total: totals.total,
         status: "new",
         createdAt: Date.now(),

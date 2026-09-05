@@ -3,18 +3,17 @@ import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { Stepper } from "@/components/ui";
-import { cartTotals, lineUnitPrice, money, optionBlurb, waitCopy } from "@/lib/format";
+import { cartTotals, lineUnitPrice, money, optionBlurb, taxLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { hapticLight } from "@/lib/haptics";
 import { borderWidth, colors, radius } from "@/lib/theme";
-import { TAX_RATE } from "@/lib/types";
 
 export function CartDrawer({ open, onClose, table }: { open: boolean; onClose: () => void; table?: string }) {
   const { cart, items, cafe, cartTable, setQty } = useStore();
   const cur = cafe.currency || "USD";
   const { width } = useWindowDimensions();
   const drawerW = Math.min(420, width);
-  const totals = cartTotals(cart, items, cafe.currency || "USD");
+  const totals = cartTotals(cart, items, cafe);
   const accent = cafe.accentColor || colors.gold;
 
   return (
@@ -82,12 +81,12 @@ export function CartDrawer({ open, onClose, table }: { open: boolean; onClose: (
                 <Text style={styles.sumLbl}>Subtotal</Text>
                 <Text style={styles.sumVal}>{money(totals.subtotal, cur)}</Text>
               </View>
-              {cur === "INR" ? null : (
+              {totals.tax > 0 ? (
                 <View style={styles.sumRow}>
-                  <Text style={styles.sumLbl}>Estimated tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
+                  <Text style={styles.sumLbl}>{taxLabel(totals.taxName, totals.taxRate)}</Text>
                   <Text style={styles.sumVal}>{money(totals.tax, cur)}</Text>
                 </View>
-              )}
+              ) : null}
               <View style={styles.rule} />
               <View style={styles.sumRow}>
                 <Text style={styles.due}>TOTAL DUE {cafe.cashOnly ? "(CASH)" : ""}</Text>

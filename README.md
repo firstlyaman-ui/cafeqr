@@ -51,8 +51,9 @@ Guest menus use cafe-specific paths:
 
 | Cafe | Example guest URL |
 |------|-------------------|
-| Velvet Bean | `/c/velvet-bean/t/04` |
-| Spice Lane | `/c/spice-lane/t/03` |
+| Velvet Bean (USD · Tax 8%) | `/c/velvet-bean/t/04` |
+| Spice Lane (INR · GST 5%) | `/c/spice-lane/t/03` |
+| Himalayan Beans (NPR · VAT 13%) | `/c/himalayan-beans/t/04` |
 
 Owner and staff screens take `?slug=` (e.g. `/owner?slug=velvet-bean`, `/staff?slug=spice-lane`). QR codes use the cafe-specific guest paths above.
 
@@ -66,7 +67,7 @@ Owner and staff PIN for both seeded cafes: **`1234`**
 - Staff 4-digit confirm codes before kitchen (Petpooja-style)
 - Dine in / Takeaway at checkout
 - Menu search; QR ordering pause from owner
-- INR invoices show CGST 2.5% + SGST 2.5%; WhatsApp share on receipt
+- Custom tax name + rate per café (Nepal VAT 13%, India GST 5% with optional CGST/SGST split, US Tax 8%); WhatsApp share on receipt
 
 ## Layout
 
@@ -108,7 +109,7 @@ npx vercel --prod --yes --scope aman-42f1
 
 Also do not create `app/.vercel` linked to `cafeqr` — link only the monorepo root (`.vercel/` is gitignored).
 
-Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
+Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`, `/c/himalayan-beans/t/04`
 
 ### Database durability
 

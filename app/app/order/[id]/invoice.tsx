@@ -3,7 +3,7 @@ import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Loading, Screen } from "@/components/ui";
-import { money, optionBlurb, tableLabel } from "@/lib/format";
+import { isGstSplit, money, optionBlurb, tableLabel, taxLabel } from "@/lib/format";
 import { hapticMedium } from "@/lib/haptics";
 import { diningLabel, shareReceipt } from "@/lib/share";
 import { useStore } from "@/lib/store";
@@ -92,14 +92,20 @@ export default function OrderInvoice() {
         {order.notes ? <Text style={styles.notes}>Note: {order.notes}</Text> : null}
         <View style={styles.rule} />
         <Row k="Subtotal" v={money(order.subtotal, cur)} />
-        {cur === "INR" ? (
-          <>
-            <Row k="CGST (2.5%)" v={money(half, cur)} />
-            <Row k="SGST (2.5%)" v={money(order.tax - half, cur)} />
-          </>
-        ) : (
-          <Row k="Tax" v={money(order.tax, cur)} />
-        )}
+        {(() => {
+          const name = order.taxName || cafe.taxName || "Tax";
+          const rate = cafe.taxRate;
+          if (isGstSplit(name, rate) && order.tax > 0) {
+            return (
+              <>
+                <Row k="CGST (2.5%)" v={money(half, cur)} />
+                <Row k="SGST (2.5%)" v={money(order.tax - half, cur)} />
+              </>
+            );
+          }
+          if (order.tax > 0) return <Row k={taxLabel(name, rate)} v={money(order.tax, cur)} />;
+          return null;
+        })()}
         <Row k="Total" v={money(order.total, cur)} bold />
         <View style={[styles.dueBox, { marginTop: 12 }]}>
           <Text style={styles.dueLbl}>{order.payCash ? "CASH DUE" : "AMOUNT DUE"}</Text>

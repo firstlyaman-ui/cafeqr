@@ -3,11 +3,11 @@ import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Field, Loading, Screen } from "@/components/ui";
-import { cartTotals, lineUnitPrice, money, optionBlurb, padTable, tableLabel, waitCopy } from "@/lib/format";
+import { cartTotals, isGstSplit, lineUnitPrice, money, optionBlurb, padTable, tableLabel, taxLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { hapticError, hapticSuccess } from "@/lib/haptics";
 import { borderWidth, colors, radius } from "@/lib/theme";
-import { TAX_RATE, type DiningOption } from "@/lib/types";
+import type { DiningOption } from "@/lib/types";
 
 export default function Checkout() {
   const params = useLocalSearchParams<{ table?: string; slug?: string }>();
@@ -19,7 +19,7 @@ export default function Checkout() {
   const [dining, setDining] = useState<DiningOption>("dine_in");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const totals = cartTotals(cart, items, cafe.currency || "USD");
+  const totals = cartTotals(cart, items, cafe);
   const cur = cafe.currency || "USD";
   const orderingOn = cafe.orderingEnabled !== false;
 
@@ -133,7 +133,7 @@ export default function Checkout() {
             <Text style={styles.muted}>Subtotal</Text>
             <Text>{money(totals.subtotal, cur)}</Text>
           </View>
-          {cur === "INR" ? (
+          {isGstSplit(totals.taxName, totals.taxRate) ? (
             <>
               <View style={styles.row}>
                 <Text style={styles.muted}>CGST (2.5%)</Text>
@@ -144,12 +144,12 @@ export default function Checkout() {
                 <Text>{money(totals.sgst, cur)}</Text>
               </View>
             </>
-          ) : (
+          ) : totals.tax > 0 ? (
             <View style={styles.row}>
-              <Text style={styles.muted}>Tax ({(TAX_RATE * 100).toFixed(1)}%)</Text>
+              <Text style={styles.muted}>{taxLabel(totals.taxName, totals.taxRate)}</Text>
               <Text>{money(totals.tax, cur)}</Text>
             </View>
-          )}
+          ) : null}
           <View style={styles.row}>
             <Text style={styles.due}>TOTAL DUE (CASH)</Text>
             <Text style={styles.dueAmt}>{money(totals.total, cur)}</Text>

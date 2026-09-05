@@ -14,8 +14,6 @@ const {
 } = require("./validate");
 
 const PORT = process.env.PORT || 8787;
-const USD_TAX_RATE = 0.08;
-const INR_GST_RATE = 0.05;
 const VERSION =
   process.env.VERCEL_GIT_COMMIT_SHA ||
   process.env.GIT_SHA ||
@@ -41,10 +39,23 @@ function genConfirmCode() {
   return String(1000 + Math.floor(Math.random() * 9000));
 }
 
-function computeTax(subtotal, currency) {
-  const rate = currency === "INR" ? INR_GST_RATE : USD_TAX_RATE;
-  if (currency === "INR" && rate === 0) return 0;
-  return Math.round(subtotal * rate * 100) / 100;
+function cafeTaxRate(cafe) {
+  const n = Number(cafe?.tax_rate);
+  if (Number.isFinite(n) && n >= 0) return n;
+  // Legacy fallback before tax_rate column
+  if (cafe?.currency === "INR") return 0.05;
+  if (cafe?.currency === "NPR") return 0.13;
+  return 0.08;
+}
+
+function cafeTaxName(cafe) {
+  return String(cafe?.tax_name || "").trim() || (cafe?.currency === "INR" ? "GST" : cafe?.currency === "NPR" ? "VAT" : "Tax");
+}
+
+function computeTax(subtotal, rate) {
+  const r = Number(rate);
+  if (!Number.isFinite(r) || r <= 0) return 0;
+  return Math.round(subtotal * r * 100) / 100;
 }
 
 function mapCafe(row) {
@@ -60,6 +71,9 @@ function mapCafe(row) {
     tableCount: row.table_count || 8,
     cashOnly: !!row.cash_only,
     currency: row.currency || "USD",
+    country: row.country || "US",
+    taxName: cafeTaxName(row),
+    taxRate: cafeTaxRate(row),
     orderingEnabled:
       row.ordering_enabled === undefined || row.ordering_enabled === null ? true : !!row.ordering_enabled,
     createdAt: row.created_at,
@@ -107,6 +121,7 @@ function mapOrder(row) {
     items,
     subtotal: row.subtotal,
     tax: row.tax,
+    taxName: row.tax_name || "",
     total: row.total,
     status: row.status,
     estimatedWait: row.estimated_wait,
@@ -242,6 +257,9 @@ async function createApp() {
           name: r.name,
           tagline: r.tagline,
           currency: r.currency,
+          country: r.country || undefined,
+          taxName: r.tax_name || undefined,
+          taxRate: r.tax_rate !== undefined && r.tax_rate !== null ? Number(r.tax_rate) : undefined,
           accentColor: r.accent_color,
         }))
       );
@@ -270,6 +288,12 @@ async function createApp() {
       table_count: Math.max(1, Math.min(48, Number(body.tableCount || body.table_count) || 8)),
       cash_only: body.cashOnly === false || body.cash_only === 0 ? 0 : 1,
       currency: body.currency || "USD",
+      country: (body.country || "US").toUpperCase().slice(0, 8),
+      tax_name: body.taxName || body.tax_name || "Tax",
+      tax_rate: (() => {
+        const n = Number(body.taxRate ?? body.tax_rate);
+        return Number.isFinite(n) && n >= 0 ? Math.min(1, n) : 0.08;
+      })(),
       owner_pin: body.ownerPin || body.owner_pin || "1234",
       staff_pin: body.staffPin || body.staff_pin || "1234",
       ordering_enabled: body.orderingEnabled === false || body.ordering_enabled === 0 ? 0 : 1,
@@ -322,6 +346,24 @@ async function createApp() {
             ? Number(b.cash_only)
             : null,
       currency: b.currency !== undefined ? String(b.currency) : null,
+      country: b.country !== undefined ? String(b.country).toUpperCase().slice(0, 8) : null,
+      tax_name:
+        b.taxName !== undefined
+          ? String(b.taxName)
+          : b.tax_name !== undefined
+            ? String(b.tax_name)
+            : null,
+      tax_rate: (() => {
+        if (b.taxRate !== undefined) {
+          const n = Number(b.taxRate);
+          return Number.isFinite(n) && n >= 0 ? Math.min(1, n) : null;
+        }
+        if (b.tax_rate !== undefined) {
+          const n = Number(b.tax_rate);
+          return Number.isFinite(n) && n >= 0 ? Math.min(1, n) : null;
+        }
+        return null;
+      })(),
       ordering_enabled: orderingEnabled,
     });
     res.json(mapCafe(updated));
@@ -518,7 +560,9 @@ async function createApp() {
       subtotal = lines.reduce((s, l) => s + (Number(l.unitPrice) || 0) * (Number(l.qty) || 1), 0);
       subtotal = Math.round(subtotal * 100) / 100;
     }
-    if (!Number.isFinite(tax)) tax = computeTax(subtotal, cafe.currency);
+    const taxRate = cafeTaxRate(cafe);
+    const taxName = cafeTaxName(cafe);
+    if (!Number.isFinite(tax)) tax = computeTax(subtotal, taxRate);
     if (!Number.isFinite(total)) total = Math.round((subtotal + tax) * 100) / 100;
 
     const prefix = orderPrefix(cafe.slug);
@@ -553,6 +597,7 @@ async function createApp() {
       items: lines,
       subtotal,
       tax,
+      tax_name: taxName,
       total,
       status: "new",
       estimated_wait: Math.max(2, wait),

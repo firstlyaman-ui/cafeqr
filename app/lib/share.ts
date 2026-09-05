@@ -1,6 +1,6 @@
 import { Platform, Share } from "react-native";
 
-import { money, optionBlurb, tableLabel } from "./format";
+import { isGstSplit, money, optionBlurb, tableLabel, taxLabel } from "./format";
 import type { CafeProfile, Order } from "./types";
 
 export function diningLabel(opt?: string): string {
@@ -24,12 +24,14 @@ export function buildReceiptText(cafe: CafeProfile, order: Order): string {
     "",
     `Subtotal  ${money(order.subtotal, cur)}`,
   ];
-  if (cur === "INR") {
+  const name = order.taxName || cafe.taxName || "Tax";
+  const rate = cafe.taxRate;
+  if (isGstSplit(name, rate) && order.tax > 0) {
     const half = Math.round((order.tax / 2) * 100) / 100;
     lines.push(`CGST (2.5%)  ${money(half, cur)}`);
     lines.push(`SGST (2.5%)  ${money(order.tax - half, cur)}`);
   } else if (order.tax > 0) {
-    lines.push(`Tax  ${money(order.tax, cur)}`);
+    lines.push(`${taxLabel(name, rate)}  ${money(order.tax, cur)}`);
   }
   lines.push(`Total  ${money(order.total, cur)}`);
   if (order.payCash) lines.push("Cash due at counter");
