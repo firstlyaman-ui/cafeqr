@@ -93,21 +93,24 @@ Two Vercel projects (recommended):
    - Build command: `npx expo export --platform web` (matches `app/package.json` `build` / `export:web`)
    - Set env `EXPO_PUBLIC_API_URL` to the API production URL, then redeploy
 
-### Critical: always deploy the web app from the monorepo root
+### Critical: always deploy both projects from the monorepo root
 
-The `cafeqr` project keeps **Root Directory = `app`**. That means Vercel expects the upload to contain `app/package.json` (monorepo layout).
+`cafeqr` has **Root Directory = `app`** and `cafeqr-api` has **Root Directory = `api`**. Vercel expects the upload to contain the monorepo layout (`app/package.json` / `api/package.json`).
 
 ```bash
-# From repo root (correct)
-cd /path/to/CafeQR   # monorepo root — must see both api/ and app/
+# Web (root .vercel → cafeqr)
+cd /path/to/CafeQR
 npx vercel --prod --yes --scope aman-42f1
+
+# API (temporarily point root .vercel at cafeqr-api, then restore)
+mv .vercel .vercel-web && cp -a api/.vercel .vercel
+npx vercel --prod --yes --scope aman-42f1
+rm -rf .vercel && mv .vercel-web .vercel
 ```
 
-**Do not** run `vercel` from inside `app/`. That uploads only the app folder while Root Directory is still `app`, so the build looks for `app/package.json` inside an already-app tree and fails with:
+**Do not** run `vercel` from inside `app/` or `api/` alone — Root Directory still expects the parent folder, and the deploy can alias a broken empty build.
 
-`ConfigError: The expected package.json path: /vercel/path0/app/package.json does not exist`
-
-Also do not create `app/.vercel` linked to `cafeqr` — link only the monorepo root (`.vercel/` is gitignored).
+Also do not create `app/.vercel` linked to `cafeqr` — keep project links under monorepo root / `api/.vercel` for the swap above.
 
 Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`, `/c/himalayan-beans/t/04`
 
