@@ -73,29 +73,34 @@ CafeQR/
 
 ## Deploy (Vercel)
 
+Two Vercel projects (recommended):
 
-
-Two projects (recommended):
-
-
-
-1. **API** — root directory `api/`
-
+1. **API** (`cafeqr-api`) — Project Root Directory = `api/`
    - Serverless Express via `api/api/index.js` + `api/vercel.json`
-
    - Uses `sql.js` on `/tmp` (ephemeral; re-seeded on cold start)
 
-2. **Web** — root directory `app/`
+2. **Web** (`cafeqr`) — Project Root Directory = `app/`
+   - Static Expo export to `dist` + SPA rewrites in `app/vercel.json`
+   - Build command: `npx expo export --platform web` (matches `app/package.json` `build` / `export:web`)
+   - Set env `EXPO_PUBLIC_API_URL` to the API production URL, then redeploy
 
-   - Static Expo export (`dist`) + SPA rewrites in `app/vercel.json`
+### Critical: always deploy the web app from the monorepo root
 
-   - Set `EXPO_PUBLIC_API_URL` to the API production URL, then redeploy
+The `cafeqr` project keeps **Root Directory = `app`**. That means Vercel expects the upload to contain `app/package.json` (monorepo layout).
 
+```bash
+# From repo root (correct)
+cd /path/to/CafeQR   # monorepo root — must see both api/ and app/
+npx vercel --prod --yes --scope aman-42f1
+```
 
+**Do not** run `vercel` from inside `app/`. That uploads only the app folder while Root Directory is still `app`, so the build looks for `app/package.json` inside an already-app tree and fails with:
+
+`ConfigError: The expected package.json path: /vercel/path0/app/package.json does not exist`
+
+Also do not create `app/.vercel` linked to `cafeqr` — link only the monorepo root (`.vercel/` is gitignored).
 
 Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
-
-
 
 **Caveat:** serverless SQLite under `/tmp` is not durable across instances/cold starts. Fine for demos; use a hosted DB for production.
 

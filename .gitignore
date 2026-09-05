@@ -29,3 +29,4 @@ api/data/*.db-*
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+.vercel/
