@@ -60,6 +60,14 @@ Owner and staff screens take `?slug=` (e.g. `/owner?slug=velvet-bean`, `/staff?s
 
 Owner and staff PIN for both seeded cafes: **`1234`**
 
+## Demo highlights (competitor-style)
+
+- Sold-out / availability toggles (Spice Lane ships with Butter Pav Bhaji sold out)
+- Staff 4-digit confirm codes before kitchen (Petpooja-style)
+- Dine in / Takeaway at checkout
+- Menu search; QR ordering pause from owner
+- INR invoices show CGST 2.5% + SGST 2.5%; WhatsApp share on receipt
+
 ## Layout
 
 ```
