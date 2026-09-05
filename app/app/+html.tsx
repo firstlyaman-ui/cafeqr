@@ -7,10 +7,20 @@ export default function Root({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <meta
           name="description"
           content="CafeQR — table QR menus and cash ordering for independent cafes. Print codes, add your menu, go live in one sitting."
+        />
+        <meta name="theme-color" content="#F5F4F0" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="CafeQR" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta property="og:title" content="CafeQR — QR menus for small cafes" />
+        <meta
+          property="og:description"
+          content="Table QR menus and cash ordering for independent cafés."
         />
         <title>CafeQR — QR menus for small cafes</title>
         <ScrollViewStyleReset />

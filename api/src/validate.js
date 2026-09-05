@@ -1,0 +1,108 @@
+const { z } = require("zod");
+
+const createCafeSchema = z.object({
+  name: z.string().min(1).optional(),
+  slug: z.string().min(1).optional(),
+  tagline: z.string().optional(),
+  accentColor: z.string().optional(),
+  accent_color: z.string().optional(),
+  hours: z.string().optional(),
+  address: z.string().optional(),
+  tableCount: z.union([z.number(), z.string()]).optional(),
+  table_count: z.union([z.number(), z.string()]).optional(),
+  cashOnly: z.boolean().optional(),
+  cash_only: z.union([z.number(), z.boolean()]).optional(),
+  currency: z.enum(["USD", "INR"]).optional(),
+  ownerPin: z.string().optional(),
+  owner_pin: z.string().optional(),
+  staffPin: z.string().optional(),
+  staff_pin: z.string().optional(),
+  orderingEnabled: z.boolean().optional(),
+  ordering_enabled: z.union([z.number(), z.boolean()]).optional(),
+}).refine((b) => !!(b.slug || b.name), { message: "slug or name required" });
+
+const patchCafeSchema = z.object({
+  name: z.string().optional(),
+  tagline: z.string().optional(),
+  accentColor: z.string().optional(),
+  accent_color: z.string().optional(),
+  hours: z.string().optional(),
+  address: z.string().optional(),
+  tableCount: z.union([z.number(), z.string()]).optional(),
+  table_count: z.union([z.number(), z.string()]).optional(),
+  cashOnly: z.boolean().optional(),
+  cash_only: z.union([z.number(), z.boolean()]).optional(),
+  currency: z.enum(["USD", "INR"]).optional(),
+  orderingEnabled: z.boolean().optional(),
+  ordering_enabled: z.union([z.number(), z.boolean()]).optional(),
+}).passthrough();
+
+const categorySchema = z.object({
+  name: z.string().min(1).optional(),
+  sort: z.union([z.number(), z.string()]).optional(),
+});
+
+const itemSchema = z.object({
+  id: z.string().optional(),
+  categoryId: z.string().optional(),
+  category_id: z.string().optional(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  price: z.union([z.number(), z.string()]).optional(),
+  prepMinutes: z.union([z.number(), z.string()]).optional(),
+  prep_minutes: z.union([z.number(), z.string()]).optional(),
+  tags: z.array(z.string()).optional(),
+  image: z.string().optional(),
+  hasMilk: z.boolean().optional(),
+  has_milk: z.union([z.boolean(), z.number()]).optional(),
+  hasExtraShot: z.boolean().optional(),
+  has_extra_shot: z.union([z.boolean(), z.number()]).optional(),
+  active: z.boolean().optional(),
+  available: z.union([z.boolean(), z.number()]).optional(),
+}).passthrough();
+
+const orderLineSchema = z.object({
+  itemId: z.string().optional(),
+  item_id: z.string().optional(),
+  name: z.string().optional(),
+  qty: z.union([z.number(), z.string()]).optional(),
+  unitPrice: z.union([z.number(), z.string()]).optional(),
+}).passthrough();
+
+const placeOrderSchema = z.object({
+  id: z.string().optional(),
+  table: z.union([z.string(), z.number()]).optional(),
+  table_no: z.union([z.string(), z.number()]).optional(),
+  guestName: z.string().optional(),
+  guest_name: z.string().optional(),
+  phone: z.string().optional(),
+  notes: z.string().optional(),
+  items: z.array(orderLineSchema).min(1, "items required"),
+  subtotal: z.union([z.number(), z.string()]).optional(),
+  tax: z.union([z.number(), z.string()]).optional(),
+  total: z.union([z.number(), z.string()]).optional(),
+  estimatedWait: z.union([z.number(), z.string()]).optional(),
+  estimated_wait: z.union([z.number(), z.string()]).optional(),
+  confirmCode: z.string().optional(),
+  confirm_code: z.string().optional(),
+  diningOption: z.string().optional(),
+  dining_option: z.string().optional(),
+});
+
+const patchOrderSchema = z.object({
+  status: z.enum(["new", "preparing", "ready", "paid"]),
+});
+
+const pinBodySchema = z.object({
+  pin: z.string().min(1),
+});
+
+module.exports = {
+  createCafeSchema,
+  patchCafeSchema,
+  categorySchema,
+  itemSchema,
+  placeOrderSchema,
+  patchOrderSchema,
+  pinBodySchema,
+};

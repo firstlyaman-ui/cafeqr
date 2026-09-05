@@ -7,7 +7,7 @@ import { CartBar } from "@/components/CartBar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { ItemCard } from "@/components/ItemCard";
 import { OptionsSheet } from "@/components/OptionsSheet";
-import { Chip, Empty, Loading, useCols } from "@/components/ui";
+import { Banner, Chip, Empty, Loading, useCols } from "@/components/ui";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { cartTotals, padTable, tableLabel } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -26,7 +26,7 @@ export default function CafeTableMenu() {
   const slug = String(params.slug || "velvet-bean");
   const table = padTable(String(params.table || "01"));
   const store = useStore();
-  const { cafe, cafeSlug, categories, items, cart, guest, ready, addToCart, setQty, loadCafe } = store;
+  const { cafe, cafeSlug, categories, items, cart, guest, ready, apiOnline, addToCart, setQty, loadCafe } = store;
   const [loadingCafe, setLoadingCafe] = useState(true);
   const [cat, setCat] = useState("all");
   const [diet, setDiet] = useState<DietaryFilter>("all");
@@ -163,6 +163,12 @@ export default function CafeTableMenu() {
         {!orderingOn ? (
           <View style={styles.pauseBox}>
             <Text style={styles.pauseTxt}>Ordering paused — please call staff</Text>
+          </View>
+        ) : null}
+
+        {!apiOnline ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <Banner kind="err">Menu may be stale — API offline. Orders might not reach the kitchen.</Banner>
           </View>
         ) : null}
 

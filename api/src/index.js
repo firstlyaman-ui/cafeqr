@@ -1,11 +1,26 @@
 const express = require("express");
 const cors = require("cors");
-const { getDb } = require("./db");
+const { getStore } = require("./store");
 const { seed, resetCafe } = require("./seed");
+const { sendError, fromZod } = require("./errors");
+const {
+  createCafeSchema,
+  patchCafeSchema,
+  categorySchema,
+  itemSchema,
+  placeOrderSchema,
+  patchOrderSchema,
+  pinBodySchema,
+} = require("./validate");
 
 const PORT = process.env.PORT || 8787;
 const USD_TAX_RATE = 0.08;
-const INR_GST_RATE = 0.05; // 5% demo GST → shown as CGST 2.5% + SGST 2.5%
+const INR_GST_RATE = 0.05;
+const VERSION =
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.GIT_SHA ||
+  process.env.npm_package_version ||
+  "1.0.0";
 
 function slugify(s) {
   return String(s || "")
@@ -45,7 +60,8 @@ function mapCafe(row) {
     tableCount: row.table_count || 8,
     cashOnly: !!row.cash_only,
     currency: row.currency || "USD",
-    orderingEnabled: row.ordering_enabled === undefined || row.ordering_enabled === null ? true : !!row.ordering_enabled,
+    orderingEnabled:
+      row.ordering_enabled === undefined || row.ordering_enabled === null ? true : !!row.ordering_enabled,
     createdAt: row.created_at,
   };
 }
@@ -78,7 +94,7 @@ function mapItem(row) {
 function mapOrder(row) {
   let items = [];
   try {
-    items = JSON.parse(row.items || "[]");
+    items = typeof row.items === "string" ? JSON.parse(row.items || "[]") : row.items || [];
   } catch (_) {}
   const dining = row.dining_option === "takeaway" ? "takeaway" : "dine_in";
   return {
@@ -102,33 +118,29 @@ function mapOrder(row) {
   };
 }
 
-function getCafeBySlug(db, slug) {
-  return db.prepare("SELECT * FROM cafes WHERE slug = ?").get(slug);
-}
-
-function requireOwner(db, req, res, slug) {
-  const cafe = getCafeBySlug(db, slug);
+async function requireOwner(store, req, res, slug) {
+  const cafe = await store.getCafeBySlug(slug);
   if (!cafe) {
-    res.status(404).json({ error: "Cafe not found" });
+    sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
     return null;
   }
   const pin = req.header("X-Owner-Pin") || "";
   if (pin !== cafe.owner_pin) {
-    res.status(401).json({ error: "Invalid owner PIN" });
+    sendError(res, 401, "INVALID_OWNER_PIN", "Invalid owner PIN");
     return null;
   }
   return cafe;
 }
 
-function requireStaff(db, req, res, slug) {
-  const cafe = getCafeBySlug(db, slug);
+async function requireStaff(store, req, res, slug) {
+  const cafe = await store.getCafeBySlug(slug);
   if (!cafe) {
-    res.status(404).json({ error: "Cafe not found" });
+    sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
     return null;
   }
   const pin = req.header("X-Staff-Pin") || "";
   if (pin !== cafe.staff_pin) {
-    res.status(401).json({ error: "Invalid staff PIN" });
+    sendError(res, 401, "INVALID_STAFF_PIN", "Invalid staff PIN");
     return null;
   }
   return cafe;
@@ -138,273 +150,362 @@ function nid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function parseCorsOrigins() {
+  const raw =
+    process.env.CORS_ORIGINS ||
+    "https://cafeqr-five.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Best-effort in-memory rate limit (per isolate on serverless). */
+const orderHits = new Map();
+function rateLimitOrders(req, res, next) {
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  const key = `${ip}:${req.params.slug || ""}`;
+  const now = Date.now();
+  const windowMs = 60_000;
+  const max = Number(process.env.ORDER_RATE_LIMIT || 30);
+  let bucket = orderHits.get(key);
+  if (!bucket || now - bucket.start > windowMs) {
+    bucket = { start: now, count: 0 };
+    orderHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > max) {
+    return sendError(res, 429, "RATE_LIMITED", "Too many orders — try again shortly");
+  }
+  // opportunistic cleanup
+  if (orderHits.size > 5000) {
+    for (const [k, v] of orderHits) {
+      if (now - v.start > windowMs * 2) orderHits.delete(k);
+    }
+  }
+  next();
+}
+
+function securityHeaders(_req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  next();
+}
+
 let cachedApp = null;
 
 async function createApp() {
   if (cachedApp) return cachedApp;
-  const db = await getDb();
+  const store = await getStore();
   await seed();
 
   const app = express();
-  app.use(cors({ origin: true }));
+  const origins = parseCorsOrigins();
+  app.use(
+    cors({
+      origin(origin, cb) {
+        if (!origin) return cb(null, true); // curl / same-origin / server-to-server
+        if (origins.includes("*") || origins.includes(origin)) return cb(null, true);
+        // Allow Vercel preview deploys of cafeqr
+        if (/^https:\/\/cafeqr[a-z0-9-]*\.vercel\.app$/.test(origin)) return cb(null, true);
+        return cb(null, false);
+      },
+      credentials: false,
+    })
+  );
+  app.use(securityHeaders);
   app.use(express.json({ limit: "2mb" }));
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "cafeqr-api", time: Date.now() });
+  app.get("/health", async (_req, res) => {
+    const dbUp = await store.ping();
+    res.status(dbUp ? 200 : 503).json({
+      ok: dbUp,
+      db: dbUp ? "up" : "down",
+      driver: store.driver,
+      version: String(VERSION).slice(0, 40),
+      time: Date.now(),
+      service: "cafeqr-api",
+    });
   });
 
-  app.get("/cafes", (_req, res) => {
-    const rows = db.prepare("SELECT slug, name, tagline, currency, accent_color FROM cafes ORDER BY name").all();
-    res.json(
-      rows.map((r) => ({
-        slug: r.slug,
-        name: r.name,
-        tagline: r.tagline,
-        currency: r.currency,
-        accentColor: r.accent_color,
-      }))
-    );
+  app.get("/version", (_req, res) => {
+    res.json({ version: String(VERSION).slice(0, 40), service: "cafeqr-api", driver: store.driver });
   });
 
-  app.post("/cafes", (req, res) => {
-    const body = req.body || {};
+  app.get("/cafes", async (_req, res) => {
+    try {
+      const rows = await store.listCafes();
+      res.json(
+        rows.map((r) => ({
+          slug: r.slug,
+          name: r.name,
+          tagline: r.tagline,
+          currency: r.currency,
+          accentColor: r.accent_color,
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+      sendError(res, 500, "INTERNAL", "Failed to list cafes");
+    }
+  });
+
+  app.post("/cafes", async (req, res) => {
+    const parsed = createCafeSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const body = parsed.data;
     let slug = slugify(body.slug || body.name);
-    if (!slug) return res.status(400).json({ error: "slug or name required" });
-    if (getCafeBySlug(db, slug)) return res.status(409).json({ error: "Slug already taken" });
+    if (!slug) return sendError(res, 400, "VALIDATION_ERROR", "slug or name required");
+    if (await store.getCafeBySlug(slug)) return sendError(res, 409, "SLUG_TAKEN", "Slug already taken");
 
     const name = (body.name || slug).trim();
-    db.prepare(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, owner_pin, staff_pin, ordering_enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
+    const cafe = await store.createCafe({
       slug,
       name,
-      body.tagline || "",
-      body.accentColor || body.accent_color || "#E8B62C",
-      body.hours || "",
-      body.address || "",
-      Math.max(1, Math.min(48, Number(body.tableCount || body.table_count) || 8)),
-      body.cashOnly === false || body.cash_only === 0 ? 0 : 1,
-      body.currency || "USD",
-      body.ownerPin || body.owner_pin || "1234",
-      body.staffPin || body.staff_pin || "1234",
-      body.orderingEnabled === false || body.ordering_enabled === 0 ? 0 : 1
-    );
-
-    const cafe = getCafeBySlug(db, slug);
-    db.prepare(`INSERT INTO categories (id, cafe_id, name, sort) VALUES (?, ?, ?, ?)`).run(
-      nid("cat"),
-      cafe.id,
-      "Menu",
-      1
-    );
+      tagline: body.tagline || "",
+      accent_color: body.accentColor || body.accent_color || "#E8B62C",
+      hours: body.hours || "",
+      address: body.address || "",
+      table_count: Math.max(1, Math.min(48, Number(body.tableCount || body.table_count) || 8)),
+      cash_only: body.cashOnly === false || body.cash_only === 0 ? 0 : 1,
+      currency: body.currency || "USD",
+      owner_pin: body.ownerPin || body.owner_pin || "1234",
+      staff_pin: body.staffPin || body.staff_pin || "1234",
+      ordering_enabled: body.orderingEnabled === false || body.ordering_enabled === 0 ? 0 : 1,
+    });
+    await store.createCategory({ id: nid("cat"), cafe_id: cafe.id, name: "Menu", sort: 1 });
     res.status(201).json(mapCafe(cafe));
   });
 
-  app.get("/cafes/:slug", (req, res) => {
-    const cafe = getCafeBySlug(db, req.params.slug);
-    if (!cafe) return res.status(404).json({ error: "Cafe not found" });
-    const categories = db
-      .prepare("SELECT * FROM categories WHERE cafe_id = ? ORDER BY sort, name")
-      .all(cafe.id)
-      .map(mapCategory);
-    const items = db
-      .prepare("SELECT * FROM items WHERE cafe_id = ? AND active = 1 ORDER BY name")
-      .all(cafe.id)
-      .map(mapItem);
+  app.get("/cafes/:slug", async (req, res) => {
+    const cafe = await store.getCafeBySlug(req.params.slug);
+    if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
+    const categories = (await store.listCategories(cafe.id)).map(mapCategory);
+    const items = (await store.listItems(cafe.id, { activeOnly: true })).map(mapItem);
     res.json({ cafe: mapCafe(cafe), categories, items });
   });
 
-  app.patch("/cafes/:slug", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.patch("/cafes/:slug", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const b = req.body || {};
+    const parsed = patchCafeSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const b = parsed.data;
     let orderingEnabled = null;
     if (b.orderingEnabled !== undefined) orderingEnabled = b.orderingEnabled ? 1 : 0;
     else if (b.ordering_enabled !== undefined) orderingEnabled = Number(b.ordering_enabled) ? 1 : 0;
 
-    db.prepare(
-      `UPDATE cafes SET
-        name = COALESCE(?, name),
-        tagline = COALESCE(?, tagline),
-        accent_color = COALESCE(?, accent_color),
-        hours = COALESCE(?, hours),
-        address = COALESCE(?, address),
-        table_count = COALESCE(?, table_count),
-        cash_only = COALESCE(?, cash_only),
-        currency = COALESCE(?, currency),
-        ordering_enabled = COALESCE(?, ordering_enabled)
-       WHERE id = ?`
-    ).run(
-      b.name !== undefined ? String(b.name) : null,
-      b.tagline !== undefined ? String(b.tagline) : null,
-      b.accentColor !== undefined ? String(b.accentColor) : b.accent_color !== undefined ? String(b.accent_color) : null,
-      b.hours !== undefined ? String(b.hours) : null,
-      b.address !== undefined ? String(b.address) : null,
-      b.tableCount !== undefined ? Number(b.tableCount) : b.table_count !== undefined ? Number(b.table_count) : null,
-      b.cashOnly !== undefined ? (b.cashOnly ? 1 : 0) : b.cash_only !== undefined ? Number(b.cash_only) : null,
-      b.currency !== undefined ? String(b.currency) : null,
-      orderingEnabled,
-      cafe.id
-    );
-    res.json(mapCafe(getCafeBySlug(db, cafe.slug)));
+    const updated = await store.updateCafe(cafe.id, {
+      name: b.name !== undefined ? String(b.name) : null,
+      tagline: b.tagline !== undefined ? String(b.tagline) : null,
+      accent_color:
+        b.accentColor !== undefined
+          ? String(b.accentColor)
+          : b.accent_color !== undefined
+            ? String(b.accent_color)
+            : null,
+      hours: b.hours !== undefined ? String(b.hours) : null,
+      address: b.address !== undefined ? String(b.address) : null,
+      table_count:
+        b.tableCount !== undefined
+          ? Number(b.tableCount)
+          : b.table_count !== undefined
+            ? Number(b.table_count)
+            : null,
+      cash_only:
+        b.cashOnly !== undefined
+          ? b.cashOnly
+            ? 1
+            : 0
+          : b.cash_only !== undefined
+            ? Number(b.cash_only)
+            : null,
+      currency: b.currency !== undefined ? String(b.currency) : null,
+      ordering_enabled: orderingEnabled,
+    });
+    res.json(mapCafe(updated));
   });
 
-  app.post("/cafes/:slug/verify-owner", (req, res) => {
-    const cafe = getCafeBySlug(db, req.params.slug);
-    if (!cafe) return res.status(404).json({ error: "Cafe not found" });
-    const pin = (req.body && req.body.pin) || "";
-    res.json({ ok: pin === cafe.owner_pin });
+  app.post("/cafes/:slug/verify-owner", async (req, res) => {
+    const cafe = await store.getCafeBySlug(req.params.slug);
+    if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
+    const parsed = pinBodySchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    res.json({ ok: parsed.data.pin === cafe.owner_pin });
   });
 
-  app.post("/cafes/:slug/verify-staff", (req, res) => {
-    const cafe = getCafeBySlug(db, req.params.slug);
-    if (!cafe) return res.status(404).json({ error: "Cafe not found" });
-    const pin = (req.body && req.body.pin) || "";
-    res.json({ ok: pin === cafe.staff_pin });
+  app.post("/cafes/:slug/verify-staff", async (req, res) => {
+    const cafe = await store.getCafeBySlug(req.params.slug);
+    if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
+    const parsed = pinBodySchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    res.json({ ok: parsed.data.pin === cafe.staff_pin });
   });
 
-  app.post("/cafes/:slug/categories", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.post("/cafes/:slug/categories", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const name = ((req.body && req.body.name) || "New category").trim();
-    const maxSort = db.prepare("SELECT MAX(sort) as m FROM categories WHERE cafe_id = ?").get(cafe.id);
+    const parsed = categorySchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const name = ((parsed.data.name) || "New category").trim();
+    const sort = (await store.maxCategorySort(cafe.id)) + 1;
     const id = nid("cat");
-    const sort = (maxSort && maxSort.m ? maxSort.m : 0) + 1;
-    db.prepare(`INSERT INTO categories (id, cafe_id, name, sort) VALUES (?, ?, ?, ?)`).run(id, cafe.id, name, sort);
-    res.status(201).json({ id, name, sort });
+    const cat = await store.createCategory({ id, cafe_id: cafe.id, name, sort });
+    res.status(201).json(cat);
   });
 
-  app.patch("/cafes/:slug/categories/:id", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.patch("/cafes/:slug/categories/:id", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM categories WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Category not found" });
-    const name = req.body && req.body.name !== undefined ? String(req.body.name) : row.name;
-    const sort = req.body && req.body.sort !== undefined ? Number(req.body.sort) : row.sort;
-    db.prepare("UPDATE categories SET name = ?, sort = ? WHERE id = ?").run(name, sort, row.id);
-    res.json({ id: row.id, name, sort });
+    const parsed = categorySchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const updated = await store.updateCategory(req.params.id, cafe.id, parsed.data);
+    if (!updated) return sendError(res, 404, "CATEGORY_NOT_FOUND", "Category not found");
+    res.json(updated);
   });
 
-  app.delete("/cafes/:slug/categories/:id", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.delete("/cafes/:slug/categories/:id", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM categories WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Category not found" });
-    db.prepare("DELETE FROM items WHERE category_id = ? AND cafe_id = ?").run(row.id, cafe.id);
-    db.prepare("DELETE FROM categories WHERE id = ?").run(row.id);
+    const row = await store.getCategory(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "CATEGORY_NOT_FOUND", "Category not found");
+    await store.deleteCategory(row.id, cafe.id);
     res.json({ ok: true });
   });
 
-  app.post("/cafes/:slug/items", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.post("/cafes/:slug/items", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const b = req.body || {};
-    const id = b.id || nid("item");
+    const parsed = itemSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const b = parsed.data;
     const categoryId = b.categoryId || b.category_id;
-    if (!categoryId) return res.status(400).json({ error: "categoryId required" });
-    if (!(b.name || "").toString().trim()) return res.status(400).json({ error: "name required" });
-    const cat = db.prepare("SELECT id FROM categories WHERE id = ? AND cafe_id = ?").get(categoryId, cafe.id);
-    if (!cat) return res.status(400).json({ error: "Invalid category" });
+    if (!categoryId) return sendError(res, 400, "VALIDATION_ERROR", "categoryId required");
+    if (!(b.name || "").toString().trim()) return sendError(res, 400, "VALIDATION_ERROR", "name required");
+    const cat = await store.getCategory(categoryId, cafe.id);
+    if (!cat) return sendError(res, 400, "INVALID_CATEGORY", "Invalid category");
+    const id = b.id || nid("item");
     const available = b.available === false || b.available === 0 ? 0 : 1;
-    db.prepare(
-      `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, active, available)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
+    const row = await store.createItem({
       id,
-      cafe.id,
-      categoryId,
-      (b.name || "Untitled").trim(),
-      b.description || "",
-      Number.isFinite(Number(b.price)) ? Math.max(0, Number(b.price)) : 0,
-      Number.isFinite(Number(b.prepMinutes ?? b.prep_minutes)) ? Math.max(0, Number(b.prepMinutes ?? b.prep_minutes)) : 5,
-      JSON.stringify(b.tags || []),
-      b.image || "",
-      b.hasMilk || b.has_milk ? 1 : 0,
-      b.hasExtraShot || b.has_extra_shot ? 1 : 0,
-      b.active === false ? 0 : 1,
-      available
-    );
-    const row = db.prepare("SELECT * FROM items WHERE id = ?").get(id);
+      cafe_id: cafe.id,
+      category_id: categoryId,
+      name: (b.name || "Untitled").trim(),
+      description: b.description || "",
+      price: Number.isFinite(Number(b.price)) ? Math.max(0, Number(b.price)) : 0,
+      prep_minutes: Number.isFinite(Number(b.prepMinutes ?? b.prep_minutes))
+        ? Math.max(0, Number(b.prepMinutes ?? b.prep_minutes))
+        : 5,
+      tags: b.tags || [],
+      image: b.image || "",
+      has_milk: b.hasMilk || b.has_milk ? 1 : 0,
+      has_extra_shot: b.hasExtraShot || b.has_extra_shot ? 1 : 0,
+      active: b.active === false ? 0 : 1,
+      available,
+    });
     res.status(201).json(mapItem(row));
   });
 
-  app.patch("/cafes/:slug/items/:id", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.patch("/cafes/:slug/items/:id", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM items WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Item not found" });
-    const b = req.body || {};
-    const categoryId = b.categoryId !== undefined ? b.categoryId : b.category_id !== undefined ? b.category_id : row.category_id;
+    const row = await store.getItem(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "ITEM_NOT_FOUND", "Item not found");
+    const parsed = itemSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const b = parsed.data;
+    const categoryId =
+      b.categoryId !== undefined
+        ? b.categoryId
+        : b.category_id !== undefined
+          ? b.category_id
+          : row.category_id;
     if (categoryId !== row.category_id) {
-      const cat = db.prepare("SELECT id FROM categories WHERE id = ? AND cafe_id = ?").get(categoryId, cafe.id);
-      if (!cat) return res.status(400).json({ error: "Invalid category" });
+      const cat = await store.getCategory(categoryId, cafe.id);
+      if (!cat) return sendError(res, 400, "INVALID_CATEGORY", "Invalid category");
     }
     const tags = b.tags !== undefined ? JSON.stringify(Array.isArray(b.tags) ? b.tags : []) : row.tags;
     let available = row.available === undefined || row.available === null ? 1 : row.available;
     if (b.available !== undefined) available = b.available ? 1 : 0;
-    db.prepare(
-      `UPDATE items SET
-        category_id = ?, name = ?, description = ?, price = ?, prep_minutes = ?,
-        tags = ?, image = ?, has_milk = ?, has_extra_shot = ?, active = ?, available = ?
-       WHERE id = ?`
-    ).run(
-      categoryId,
-      b.name !== undefined ? String(b.name).trim() || row.name : row.name,
-      b.description !== undefined ? String(b.description) : row.description,
-      b.price !== undefined && Number.isFinite(Number(b.price)) ? Math.max(0, Number(b.price)) : row.price,
-      b.prepMinutes !== undefined && Number.isFinite(Number(b.prepMinutes))
-        ? Math.max(0, Number(b.prepMinutes))
-        : b.prep_minutes !== undefined && Number.isFinite(Number(b.prep_minutes))
-          ? Math.max(0, Number(b.prep_minutes))
-          : row.prep_minutes,
+    const updated = await store.updateItem(row.id, cafe.id, {
+      category_id: categoryId,
+      name: b.name !== undefined ? String(b.name).trim() || row.name : row.name,
+      description: b.description !== undefined ? String(b.description) : row.description,
+      price:
+        b.price !== undefined && Number.isFinite(Number(b.price))
+          ? Math.max(0, Number(b.price))
+          : row.price,
+      prep_minutes:
+        b.prepMinutes !== undefined && Number.isFinite(Number(b.prepMinutes))
+          ? Math.max(0, Number(b.prepMinutes))
+          : b.prep_minutes !== undefined && Number.isFinite(Number(b.prep_minutes))
+            ? Math.max(0, Number(b.prep_minutes))
+            : row.prep_minutes,
       tags,
-      b.image !== undefined ? String(b.image) : row.image,
-      b.hasMilk !== undefined ? (b.hasMilk ? 1 : 0) : b.has_milk !== undefined ? (b.has_milk ? 1 : 0) : row.has_milk,
-      b.hasExtraShot !== undefined ? (b.hasExtraShot ? 1 : 0) : b.has_extra_shot !== undefined ? (b.has_extra_shot ? 1 : 0) : row.has_extra_shot,
-      b.active !== undefined ? (b.active ? 1 : 0) : row.active,
+      image: b.image !== undefined ? String(b.image) : row.image,
+      has_milk:
+        b.hasMilk !== undefined
+          ? b.hasMilk
+            ? 1
+            : 0
+          : b.has_milk !== undefined
+            ? b.has_milk
+              ? 1
+              : 0
+            : row.has_milk,
+      has_extra_shot:
+        b.hasExtraShot !== undefined
+          ? b.hasExtraShot
+            ? 1
+            : 0
+          : b.has_extra_shot !== undefined
+            ? b.has_extra_shot
+              ? 1
+              : 0
+            : row.has_extra_shot,
+      active: b.active !== undefined ? (b.active ? 1 : 0) : row.active,
       available,
-      row.id
-    );
-    res.json(mapItem(db.prepare("SELECT * FROM items WHERE id = ?").get(row.id)));
+    });
+    res.json(mapItem(updated));
   });
 
-  app.delete("/cafes/:slug/items/:id", (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+  app.delete("/cafes/:slug/items/:id", async (req, res) => {
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM items WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Item not found" });
-    db.prepare("DELETE FROM items WHERE id = ?").run(row.id);
+    const row = await store.getItem(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "ITEM_NOT_FOUND", "Item not found");
+    await store.deleteItem(row.id);
     res.json({ ok: true });
   });
 
-  app.get("/cafes/:slug/orders", (req, res) => {
-    const cafe = requireStaff(db, req, res, req.params.slug);
+  app.get("/cafes/:slug/orders", async (req, res) => {
+    const cafe = await requireStaff(store, req, res, req.params.slug);
     if (!cafe) return;
-    const rows = db
-      .prepare("SELECT * FROM orders WHERE cafe_id = ? ORDER BY created_at DESC")
-      .all(cafe.id)
-      .map(mapOrder);
+    const rows = (await store.listOrders(cafe.id)).map(mapOrder);
     res.json(rows);
   });
 
-  app.post("/cafes/:slug/orders", (req, res) => {
-    const cafe = getCafeBySlug(db, req.params.slug);
-    if (!cafe) return res.status(404).json({ error: "Cafe not found" });
-    const orderingOn = cafe.ordering_enabled === undefined || cafe.ordering_enabled === null ? true : !!cafe.ordering_enabled;
-    if (!orderingOn) return res.status(403).json({ error: "Ordering paused — please call staff" });
+  app.post("/cafes/:slug/orders", rateLimitOrders, async (req, res) => {
+    const cafe = await store.getCafeBySlug(req.params.slug);
+    if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
+    const orderingOn =
+      cafe.ordering_enabled === undefined || cafe.ordering_enabled === null
+        ? true
+        : !!cafe.ordering_enabled;
+    if (!orderingOn) return sendError(res, 403, "ORDERING_PAUSED", "Ordering paused — please call staff");
 
-    const b = req.body || {};
-    const lines = Array.isArray(b.items) ? b.items : [];
-    if (!lines.length) return res.status(400).json({ error: "items required" });
+    const parsed = placeOrderSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const b = parsed.data;
+    const lines = b.items;
 
-    // Block sold-out items
     for (const line of lines) {
       const itemId = line.itemId || line.item_id;
       if (!itemId) continue;
-      const row = db.prepare("SELECT id, available, name FROM items WHERE id = ? AND cafe_id = ?").get(itemId, cafe.id);
+      const row = await store.getItem(itemId, cafe.id);
       if (row && (row.available === 0 || row.available === false)) {
-        return res.status(400).json({ error: `${row.name || "Item"} is sold out` });
+        return sendError(res, 400, "SOLD_OUT", `${row.name || "Item"} is sold out`);
       }
     }
 
@@ -417,19 +518,15 @@ async function createApp() {
       subtotal = lines.reduce((s, l) => s + (Number(l.unitPrice) || 0) * (Number(l.qty) || 1), 0);
       subtotal = Math.round(subtotal * 100) / 100;
     }
-    if (!Number.isFinite(tax)) {
-      tax = computeTax(subtotal, cafe.currency);
-    }
-    if (!Number.isFinite(total)) {
-      total = Math.round((subtotal + tax) * 100) / 100;
-    }
+    if (!Number.isFinite(tax)) tax = computeTax(subtotal, cafe.currency);
+    if (!Number.isFinite(total)) total = Math.round((subtotal + tax) * 100) / 100;
 
     const prefix = orderPrefix(cafe.slug);
     let id = b.id;
     if (!id) {
       for (let i = 0; i < 8; i++) {
         const candidate = `${prefix}-${1000 + Math.floor(Math.random() * 9000)}`;
-        if (!db.prepare("SELECT id FROM orders WHERE id = ?").get(candidate)) {
+        if (!(await store.orderIdExists(candidate))) {
           id = candidate;
           break;
         }
@@ -441,83 +538,77 @@ async function createApp() {
     const tableNo = String(b.table || b.table_no || "01").replace(/\D/g, "").padStart(2, "0") || "01";
     const diningRaw = String(b.diningOption || b.dining_option || "dine_in").toLowerCase();
     const diningOption = diningRaw === "takeaway" || diningRaw === "take_away" ? "takeaway" : "dine_in";
-    const confirmCode = String(b.confirmCode || b.confirm_code || genConfirmCode()).replace(/\D/g, "").slice(0, 4).padStart(4, "0");
+    const confirmCode = String(b.confirmCode || b.confirm_code || genConfirmCode())
+      .replace(/\D/g, "")
+      .slice(0, 4)
+      .padStart(4, "0");
 
-    db.prepare(
-      `INSERT INTO orders (id, cafe_id, table_no, guest_name, phone, notes, items, subtotal, tax, total, status, estimated_wait, confirm_code, dining_option, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?)`
-    ).run(
+    const row = await store.createOrder({
       id,
-      cafe.id,
-      tableNo,
-      (b.guestName || b.guest_name || "Guest").trim() || "Guest",
-      (b.phone || "").trim(),
-      (b.notes || "").trim(),
-      JSON.stringify(lines),
+      cafe_id: cafe.id,
+      table_no: tableNo,
+      guest_name: (b.guestName || b.guest_name || "Guest").trim() || "Guest",
+      phone: (b.phone || "").trim(),
+      notes: (b.notes || "").trim(),
+      items: lines,
       subtotal,
       tax,
       total,
-      Math.max(2, wait),
-      confirmCode,
-      diningOption,
-      now,
-      now
-    );
-
-    const row = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+      status: "new",
+      estimated_wait: Math.max(2, wait),
+      confirm_code: confirmCode,
+      dining_option: diningOption,
+      created_at: now,
+      updated_at: now,
+    });
     res.status(201).json(mapOrder(row));
   });
 
-  app.patch("/cafes/:slug/orders/:id", (req, res) => {
-    const cafe = requireStaff(db, req, res, req.params.slug);
+  app.patch("/cafes/:slug/orders/:id", async (req, res) => {
+    const cafe = await requireStaff(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM orders WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Order not found" });
-    const status = (req.body && req.body.status) || row.status;
-    const allowed = ["new", "preparing", "ready", "paid"];
-    if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status" });
-    const now = Date.now();
-    db.prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(status, now, row.id);
-    res.json(mapOrder(db.prepare("SELECT * FROM orders WHERE id = ?").get(row.id)));
+    const row = await store.getOrder(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "ORDER_NOT_FOUND", "Order not found");
+    const parsed = patchOrderSchema.safeParse(req.body || {});
+    if (!parsed.success) return fromZod(res, parsed.error);
+    const updated = await store.updateOrderStatus(row.id, cafe.id, parsed.data.status, Date.now());
+    res.json(mapOrder(updated));
   });
 
-  app.delete("/cafes/:slug/orders/:id", (req, res) => {
-    const cafe = requireStaff(db, req, res, req.params.slug);
+  app.delete("/cafes/:slug/orders/:id", async (req, res) => {
+    const cafe = await requireStaff(store, req, res, req.params.slug);
     if (!cafe) return;
-    const row = db.prepare("SELECT * FROM orders WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Order not found" });
-    db.prepare("DELETE FROM orders WHERE id = ?").run(row.id);
+    const row = await store.getOrder(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "ORDER_NOT_FOUND", "Order not found");
+    await store.deleteOrder(row.id);
     res.json({ ok: true });
   });
 
-  app.get("/cafes/:slug/orders/:id", (req, res) => {
-    const cafe = getCafeBySlug(db, req.params.slug);
-    if (!cafe) return res.status(404).json({ error: "Cafe not found" });
-    const row = db.prepare("SELECT * FROM orders WHERE id = ? AND cafe_id = ?").get(req.params.id, cafe.id);
-    if (!row) return res.status(404).json({ error: "Order not found" });
+  app.get("/cafes/:slug/orders/:id", async (req, res) => {
+    const cafe = await store.getCafeBySlug(req.params.slug);
+    if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
+    const row = await store.getOrder(req.params.id, cafe.id);
+    if (!row) return sendError(res, 404, "ORDER_NOT_FOUND", "Order not found");
     res.json(mapOrder(row));
   });
 
   app.post("/cafes/:slug/restore-demo", async (req, res) => {
-    const cafe = requireOwner(db, req, res, req.params.slug);
+    const cafe = await requireOwner(store, req, res, req.params.slug);
     if (!cafe) return;
     try {
       await resetCafe(cafe.slug);
-      const refreshed = getCafeBySlug(db, cafe.slug);
-      const categories = db
-        .prepare("SELECT * FROM categories WHERE cafe_id = ? ORDER BY sort, name")
-        .all(refreshed.id)
-        .map(mapCategory);
-      const items = db
-        .prepare("SELECT * FROM items WHERE cafe_id = ? AND active = 1 ORDER BY name")
-        .all(refreshed.id)
-        .map(mapItem);
+      const refreshed = await store.getCafeBySlug(cafe.slug);
+      const categories = (await store.listCategories(refreshed.id)).map(mapCategory);
+      const items = (await store.listItems(refreshed.id, { activeOnly: true })).map(mapItem);
       res.json({ ok: true, cafe: mapCafe(refreshed), categories, items });
     } catch (e) {
       const status = e && e.status ? e.status : 500;
-      res.status(status).json({ error: e.message || "Restore failed" });
+      sendError(res, status, "RESTORE_FAILED", e.message || "Restore failed");
     }
   });
+
+  // Uniform 404
+  app.use((_req, res) => sendError(res, 404, "NOT_FOUND", "Not found"));
 
   cachedApp = app;
   return app;

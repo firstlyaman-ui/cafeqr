@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { BrandMark, Btn, Kicker, Loading, Screen } from "@/components/ui";
+import { Banner, BrandMark, Btn, Kicker, Loading, Screen } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { colors, shadow } from "@/lib/theme";
 
@@ -38,6 +38,14 @@ export default function Landing() {
         <BrandMark />
         <Kicker color={colors.gold}>For independent cafés</Kicker>
       </View>
+
+      {!apiOnline ? (
+        <View style={{ marginBottom: 12 }}>
+          <Banner kind="err">
+            API offline or unreachable — showing local demo data. Orders may not persist. Check EXPO_PUBLIC_API_URL.
+          </Banner>
+        </View>
+      ) : null}
 
       <View style={styles.hero}>
         <Text style={styles.headline}>Replace paper menus{"\n"}with table QRs.</Text>

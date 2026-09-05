@@ -38,7 +38,7 @@ Optional: point at a non-default API URL:
 EXPO_PUBLIC_API_URL=http://localhost:8787 npx expo start --web
 ```
 
-Default API base in code is `http://localhost:8787` (override with `EXPO_PUBLIC_API_URL`).
+Dev default API base is `http://localhost:8787`; production builds default to `https://cafeqr-api.vercel.app` unless `EXPO_PUBLIC_API_URL` is set.
 
 ## Multi-cafe guest URLs
 
@@ -110,7 +110,27 @@ Also do not create `app/.vercel` linked to `cafeqr` — link only the monorepo r
 
 Demo paths: `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`
 
-**Caveat:** serverless SQLite under `/tmp` is not durable across instances/cold starts. Fine for demos; use a hosted DB for production.
+### Database durability
+
+- **Local:** SQLite file at `api/data/cafeqr.db`
+- **Vercel without `DATABASE_URL`:** sql.js under `/tmp` (ephemeral — demo only)
+- **Production:** set `DATABASE_URL` (Neon free / Vercel Postgres). Adapter: `PostgresStore` when URL present, else `SqliteStore`.
+
+Neon one-time setup (browser terms required):
+
+1. Accept terms: https://vercel.com/aman-42f1/~/integrations/accept-terms/neon?source=cli
+2. `cd api && npx vercel integration add neon --scope aman-42f1 -p free_v3 -m region=iad1 -m auth=false -n cafeqr-db`
+3. Redeploy `cafeqr-api`
+
+### Required env vars
+
+| Project | Variable | Purpose |
+|---------|----------|---------|
+| `cafeqr` (web) | `EXPO_PUBLIC_API_URL` | API origin (prod: `https://cafeqr-api.vercel.app`) |
+| `cafeqr-api` | `DATABASE_URL` | Durable Postgres (recommended) |
+| `cafeqr-api` | `CORS_ORIGINS` | Comma allowlist (set; includes cafeqr-five + localhost) |
+
+Health: `GET https://cafeqr-api.vercel.app/health` → `{ ok, db, driver, version }`
 
 ## Product notes
 

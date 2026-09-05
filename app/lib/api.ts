@@ -1,6 +1,16 @@
-export const API_BASE =
-  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
-  "http://localhost:8787";
+const DEV_DEFAULT = "http://localhost:8787";
+const PROD_DEFAULT = "https://cafeqr-api.vercel.app";
+
+function resolveApiBase(): string {
+  const fromEnv =
+    typeof process !== "undefined" ? process.env?.EXPO_PUBLIC_API_URL?.trim() : undefined;
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  // Expo production / static export: never bake localhost
+  if (typeof __DEV__ !== "undefined" && __DEV__) return DEV_DEFAULT;
+  return PROD_DEFAULT;
+}
+
+export const API_BASE = resolveApiBase();
 
 export type ApiCafeListItem = {
   slug: string;
@@ -39,9 +49,42 @@ export type ApiItem = {
   available?: boolean;
 };
 
+export type ApiErrorBody = {
+  error?: string | { code?: string; message?: string };
+};
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+  data: unknown;
+
+  constructor(message: string, opts: { status: number; code?: string; data?: unknown }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = opts.status;
+    this.code = opts.code || "HTTP_ERROR";
+    this.data = opts.data;
+  }
+}
+
+function extractError(data: any, status: number): { message: string; code: string } {
+  if (data && typeof data.error === "object" && data.error) {
+    return {
+      message: String(data.error.message || data.error.code || `HTTP ${status}`),
+      code: String(data.error.code || "HTTP_ERROR"),
+    };
+  }
+  if (data && typeof data.error === "string") {
+    return { message: data.error, code: "HTTP_ERROR" };
+  }
+  return { message: `HTTP ${status}`, code: "HTTP_ERROR" };
+}
+
+const DEFAULT_TIMEOUT_MS = 12000;
+
 async function req<T>(
   path: string,
-  opts: RequestInit & { ownerPin?: string; staffPin?: string } = {},
+  opts: RequestInit & { ownerPin?: string; staffPin?: string; timeoutMs?: number } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -50,8 +93,30 @@ async function req<T>(
   };
   if (opts.ownerPin) headers["X-Owner-Pin"] = opts.ownerPin;
   if (opts.staffPin) headers["X-Staff-Pin"] = opts.staffPin;
-  const { ownerPin: _o, staffPin: _s, ...rest } = opts;
-  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers });
+  const { ownerPin: _o, staffPin: _s, timeoutMs, ...rest } = opts;
+
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const ms = timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...rest,
+      headers,
+      signal: ctrl?.signal ?? rest.signal,
+    });
+  } catch (e: any) {
+    if (timer) clearTimeout(timer);
+    const aborted = e?.name === "AbortError";
+    throw new ApiError(aborted ? "Request timed out — check your connection" : "Network error — API unreachable", {
+      status: 0,
+      code: aborted ? "TIMEOUT" : "NETWORK",
+      data: e,
+    });
+  }
+  if (timer) clearTimeout(timer);
+
   const text = await res.text();
   let data: any = null;
   try {
@@ -60,29 +125,30 @@ async function req<T>(
     data = { error: text };
   }
   if (!res.ok) {
-    const err = new Error((data && data.error) || `HTTP ${res.status}`) as Error & {
-      status?: number;
-      data?: unknown;
-    };
-    err.status = res.status;
-    err.data = data;
-    throw err;
+    const { message, code } = extractError(data, res.status);
+    throw new ApiError(message, { status: res.status, code, data });
   }
   return data as T;
 }
 
+export type HealthStatus = {
+  ok: boolean;
+  db?: "up" | "down";
+  driver?: string;
+  version?: string;
+};
+
 export async function healthCheck(): Promise<boolean> {
   try {
-    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const t = ctrl ? setTimeout(() => ctrl.abort(), 2500) : null;
-    const r = await fetch(`${API_BASE}/health`, { signal: ctrl?.signal });
-    if (t) clearTimeout(t);
-    if (!r.ok) return false;
-    const j = await r.json();
-    return !!j.ok;
+    const h = await getHealth();
+    return !!h.ok;
   } catch {
     return false;
   }
+}
+
+export async function getHealth(): Promise<HealthStatus> {
+  return req<HealthStatus>("/health", { timeoutMs: 4000 });
 }
 
 export function listCafes() {
