@@ -52,7 +52,6 @@ export default function Owner() {
     setOwnerOk,
     cafe,
     cafeSlug,
-    cafeList,
     apiOnline,
     saveCafe,
     categories,
@@ -179,14 +178,6 @@ export default function Owner() {
       />
     );
   }
-
-  const switchCafe = async (slug: string) => {
-    setPicked(slug);
-    setOwnerOk(false);
-    setEditing(null);
-    setFlash(null);
-    await loadCafe(slug);
-  };
 
   const saveProfile = async () => {
     setBusy(true);
@@ -371,18 +362,11 @@ export default function Owner() {
         ) : null}
 
         <View style={styles.card}>
-          <Text style={styles.section}>Choose café</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {(cafeList.length ? cafeList : [{ slug: "velvet-bean", name: cafe.name, tagline: "" }]).map((c) => (
-              <Chip
-                key={c.slug}
-                label={c.name}
-                active={slug === c.slug}
-                onPress={() => void switchCafe(c.slug)}
-              />
-            ))}
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Guest path: /c/{slug}/t/…</Text>
+          <Text style={styles.section}>Your café</Text>
+          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.ink }}>{cafe.name}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+            {slug} · Guest path: /c/{slug}/t/…
+          </Text>
         </View>
 
         <View style={styles.card}>

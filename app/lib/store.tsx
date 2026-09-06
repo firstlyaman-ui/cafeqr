@@ -253,6 +253,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   ownerPinRef.current = ownerPin;
   const staffPinRef = useRef(staffPin);
   staffPinRef.current = staffPin;
+  const ownerOkRef = useRef(ownerOk);
+  ownerOkRef.current = ownerOk;
+  const staffOkRef = useRef(staffOk);
+  staffOkRef.current = staffOk;
 
   const applyCafePayload = useCallback(
     (slug: string, cafe: CafeProfile, categories: MenuCategory[], items: MenuItem[], keepOrders = false) => {
@@ -329,24 +333,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [applyCafePayload],
   );
 
+  /** Owner/staff builds: after auth, only the session cafe — never a multi-cafe picker list. */
+  const scopeListToSession = useCallback((list: api.ApiCafeListItem[], slug?: string) => {
+    if (APP_ROLE === "customer") return list;
+    if (!(ownerOkRef.current || staffOkRef.current)) return list;
+    const s = (slug || stateRef.current.cafeSlug || "").trim();
+    if (!s) return list;
+    const hit = list.filter((c) => c.slug === s);
+    return hit.length ? hit : list.slice(0, 0);
+  }, []);
+
   const refreshCafeList = useCallback(async () => {
     const online = await api.healthCheck();
     setApiOnline(online);
     if (!online) {
-      setCafeList([
+      const fallback = [
         { slug: "velvet-bean", name: demoCafe.name, tagline: demoCafe.tagline, currency: "USD" },
-      ]);
+      ];
+      setCafeList(scopeListToSession(fallback));
       return;
     }
     try {
       const list = await api.listCafes();
-      setCafeList(list);
+      setCafeList(scopeListToSession(list));
     } catch {
-      setCafeList([
+      const fallback = [
         { slug: "velvet-bean", name: demoCafe.name, tagline: demoCafe.tagline, currency: "USD" },
-      ]);
+      ];
+      setCafeList(scopeListToSession(fallback));
     }
-  }, []);
+  }, [scopeListToSession]);
 
   const refreshOrders = useCallback(async () => {
     const s = stateRef.current;
@@ -415,6 +431,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         taxRate: cafe.taxRate,
         accentColor: cafe.accentColor,
       };
+      // Staff/owner session: keep only the logged-in cafe in the list
+      if (APP_ROLE !== "customer" && (ownerOkRef.current || staffOkRef.current)) {
+        return [entry];
+      }
       if (!list.length) return [entry];
       let found = false;
       const next = list.map((c) => {
@@ -985,11 +1005,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (input.role === "owner") {
             setOwnerPin(input.pin);
             setOwnerOk(true);
+            ownerOkRef.current = true;
           } else {
             setStaffPin(input.pin);
             setStaffOk(true);
+            staffOkRef.current = true;
           }
-          return { ok: true as const, slug, cafeName: slug };
+          const cafeName = stateRef.current.cafe?.name || slug;
+          setCafeList([
+            {
+              slug,
+              name: cafeName,
+              tagline: stateRef.current.cafe?.tagline,
+              currency: stateRef.current.cafe?.currency,
+              country: stateRef.current.cafe?.country,
+              taxName: stateRef.current.cafe?.taxName,
+              taxRate: stateRef.current.cafe?.taxRate,
+              accentColor: stateRef.current.cafe?.accentColor,
+            },
+          ]);
+          return { ok: true as const, slug, cafeName };
         }
         const r = await api.loginCafe(input);
         if (!r.ok) return { ok: false as const, error: "Invalid login" };
@@ -997,10 +1032,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (input.role === "owner") {
           setOwnerPin(input.pin);
           setOwnerOk(true);
+          ownerOkRef.current = true;
         } else {
           setStaffPin(input.pin);
           setStaffOk(true);
+          staffOkRef.current = true;
         }
+        setCafeList([
+          {
+            slug: r.slug,
+            name: r.cafeName || stateRef.current.cafe?.name || r.slug,
+            tagline: stateRef.current.cafe?.tagline,
+            currency: stateRef.current.cafe?.currency,
+            country: stateRef.current.cafe?.country,
+            taxName: stateRef.current.cafe?.taxName,
+            taxRate: stateRef.current.cafe?.taxRate,
+            accentColor: stateRef.current.cafe?.accentColor,
+          },
+        ]);
         return { ok: true as const, slug: r.slug, cafeName: r.cafeName };
       } catch (e: any) {
         return { ok: false as const, error: errMsg(e, "Login failed") };

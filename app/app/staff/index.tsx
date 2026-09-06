@@ -97,7 +97,6 @@ export default function Staff() {
     orders,
     cafe,
     cafeSlug,
-    cafeList,
     apiOnline,
     setOrderStatus,
     rejectOrder,
@@ -175,21 +174,6 @@ export default function Staff() {
           <Btn label="Owner" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
           <Btn label="Sign out" onPress={() => setStaffOk(false)} variant="outline" />
         </View>
-      </View>
-
-      <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 12, gap: 8 }}>
-        {(cafeList.length ? cafeList : [{ slug: "velvet-bean", name: cafe.name }]).map((c) => (
-          <Chip
-            key={c.slug}
-            label={c.name}
-            active={slug === c.slug}
-            onPress={() => {
-              setStaffOk(false);
-              setPicked(c.slug);
-              void loadCafe(c.slug);
-            }}
-          />
-        ))}
       </View>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
