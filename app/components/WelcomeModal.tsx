@@ -1,9 +1,11 @@
-import { router } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { LastCallBanner } from "@/components/LastCallBanner";
 import { Btn } from "@/components/ui";
+import { staffBoardUrl, openExternal } from "@/lib/appRole";
+import { GOOGLE_CLIENT_ID, googleMapsUrl, signInWithGoogle } from "@/lib/google";
 import { useStore } from "@/lib/store";
 import { colors, shadow, type } from "@/lib/theme";
 
@@ -19,14 +21,36 @@ export function WelcomeModal({
 }) {
   const { cafe, setGuest, markWelcomed } = useStore();
   const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const accent = cafe.accentColor || colors.gold;
 
   if (!visible) return null;
 
-  const finish = (withPhone: boolean) => {
-    if (withPhone && phone.trim()) setGuest({ phone: phone.trim() });
+  const finish = (withPhone: boolean, name?: string) => {
+    const next: { phone?: string; name?: string } = {};
+    if (withPhone && phone.trim()) next.phone = phone.trim();
+    if (name) next.name = name;
+    if (Object.keys(next).length) setGuest(next);
     markWelcomed(table);
     onDone();
+  };
+
+  const onGoogle = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const r = await signInWithGoogle();
+      if (!r.ok) {
+        setErr(r.error);
+        return;
+      }
+      setGuest({ name: r.name, phone: phone.trim() || r.email || "" });
+      markWelcomed(table);
+      onDone();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -40,9 +64,30 @@ export function WelcomeModal({
           </View>
           <Text style={[type.kicker, { color: colors.muted, marginTop: 18, textAlign: "center" }]}>Welcome to</Text>
           <Text style={styles.cafe}>{cafe.name.toUpperCase()}</Text>
+          {cafe.address ? (
+            <Pressable
+              onPress={() => void Linking.openURL(googleMapsUrl(cafe.address))}
+              style={{ marginTop: 8, minHeight: 44, justifyContent: "center" }}
+              accessibilityRole="link"
+              accessibilityLabel="Open address in Google Maps"
+            >
+              <Text style={styles.maps}>{cafe.address} · Maps</Text>
+            </Pressable>
+          ) : null}
           <Text style={[type.kicker, { color: colors.faint, marginTop: 10, textAlign: "center" }]}>
-            Log in to earn loyalty points
+            Sign in or continue as guest
           </Text>
+
+          {cafe.lastCallEnabled ? (
+            <View style={{ marginTop: 14 }}>
+              <LastCallBanner
+                enabled={cafe.lastCallEnabled}
+                message={cafe.lastCallMessage}
+                endsAt={cafe.lastCallEndsAt}
+                compact
+              />
+            </View>
+          ) : null}
 
           <View style={styles.phoneRow}>
             <Text style={styles.phoneIcon}>☎</Text>
@@ -57,7 +102,19 @@ export function WelcomeModal({
             />
           </View>
 
-          <Btn label="Login for rewards  →" variant="gray" accent={accent} onPress={() => finish(true)} />
+          <Btn
+            label={busy ? "Connecting…" : "Continue with Google"}
+            variant="gray"
+            accent={accent}
+            disabled={busy}
+            onPress={() => void onGoogle()}
+          />
+          {!GOOGLE_CLIENT_ID ? (
+            <Text style={styles.hint}>Google Sign-In activates when EXPO_PUBLIC_GOOGLE_CLIENT_ID is set.</Text>
+          ) : null}
+          {err ? <Text style={styles.err}>{err}</Text> : null}
+
+          <Btn label="Login with phone  →" variant="outline" onPress={() => finish(true)} />
 
           <View style={styles.orRow}>
             <View style={styles.dash} />
@@ -70,7 +127,7 @@ export function WelcomeModal({
           <Pressable
             onPress={() => {
               markWelcomed(table);
-              router.push("/staff");
+              openExternal(staffBoardUrl(cafe.slug));
             }}
             accessibilityRole="link"
             accessibilityLabel="Staff access"
@@ -121,6 +178,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: colors.ink,
   },
+  maps: {
+    textAlign: "center",
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
   phoneRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -134,6 +198,8 @@ const styles = StyleSheet.create({
   },
   phoneIcon: { fontSize: 14, marginRight: 8, color: colors.muted },
   phoneInput: { flex: 1, fontSize: 16, color: colors.ink, minHeight: 48 },
+  hint: { color: colors.faint, fontSize: 11, marginTop: 8, marginBottom: 4, textAlign: "center" },
+  err: { color: "#B00020", fontSize: 12, fontWeight: "700", marginTop: 8, marginBottom: 4, textAlign: "center" },
   orRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 14 },
   dash: { flex: 1, height: 1, borderBottomWidth: 1, borderStyle: "dashed", borderColor: colors.ink },
   or: { fontSize: 11, letterSpacing: 2, color: colors.faint, fontWeight: "700" },

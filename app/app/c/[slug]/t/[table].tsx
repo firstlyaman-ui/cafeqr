@@ -1,15 +1,18 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CartBar } from "@/components/CartBar";
 import { CartDrawer } from "@/components/CartDrawer";
+import { HeaderTicker } from "@/components/HeaderTicker";
 import { ItemCard } from "@/components/ItemCard";
+import { LastCallBanner, lastCallExpired } from "@/components/LastCallBanner";
 import { OptionsSheet } from "@/components/OptionsSheet";
-import { Banner, Chip, Empty, Loading, useCols } from "@/components/ui";
+import { Banner, Chip, Empty, Loading } from "@/components/ui";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { cartTotals, padTable, tableLabel } from "@/lib/format";
+import { googleMapsUrl, trackPageview } from "@/lib/google";
 import { useStore } from "@/lib/store";
 import { hapticLight } from "@/lib/haptics";
 import { colors } from "@/lib/theme";
@@ -35,7 +38,7 @@ export default function CafeTableMenu() {
   const [bag, setBag] = useState(false);
   const [welcomeOn, setWelcomeOn] = useState(true);
   const [search, setSearch] = useState("");
-  const cols = useCols(300);
+  const listRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,7 +54,6 @@ export default function CafeTableMenu() {
     }, [slug, loadCafe]),
   );
 
-  // Light live refresh so sold-out / renames appear within ~10s without manual refresh.
   useEffect(() => {
     if (!apiOnline) return;
     const id = setInterval(() => {
@@ -60,11 +62,16 @@ export default function CafeTableMenu() {
     return () => clearInterval(id);
   }, [slug, apiOnline, loadCafe]);
 
+  useEffect(() => {
+    trackPageview(`/c/${slug}/t/${table}`, `${cafe.name || "Menu"}`);
+  }, [slug, table, cafe.name]);
+
   const welcomed = guest.welcomedTables.includes(`${slug}:${table}`);
   const accent = cafe.accentColor || colors.gold;
   const totals = cartTotals(cart, items, cafe);
   const letter = (cafe.name[0] || "C").toUpperCase();
   const cur = cafe.currency || "USD";
+  const sortedCats = useMemo(() => categories.slice().sort((a, b) => a.sort - b.sort), [categories]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -88,7 +95,10 @@ export default function CafeTableMenu() {
     if (!line) {
       if (dir > 0) {
         if (itemHasOptions(item)) setSheet(item);
-        else { void hapticLight(); addToCart(item.id, {}, table); }
+        else {
+          void hapticLight();
+          addToCart(item.id, {}, table);
+        }
       }
       return;
     }
@@ -96,6 +106,8 @@ export default function CafeTableMenu() {
   };
 
   const orderingOn = cafe.orderingEnabled !== false;
+  const callEnded = lastCallExpired(cafe);
+  const canCheckout = orderingOn && !callEnded;
   const showWelcome = welcomeOn && !welcomed;
 
   if (!ready || loadingCafe || cafeSlug !== slug) return <Loading />;
@@ -121,7 +133,7 @@ export default function CafeTableMenu() {
           </Text>
           <Pressable
             onPress={() => router.replace(`/c/${slug}/t/04` as any)}
-            style={{ marginTop: 20, minHeight: 44 }}
+            style={{ marginTop: 20, minHeight: 44, justifyContent: "center" }}
           >
             <Text style={{ fontWeight: "800", letterSpacing: 1, textDecorationLine: "underline" }}>OPEN TABLE 4</Text>
           </Pressable>
@@ -132,50 +144,75 @@ export default function CafeTableMenu() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: totals.count ? 96 : 32 }}>
-        <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoTxt}>{letter}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cafe}>{cafe.name.toUpperCase()}</Text>
-            <Text style={styles.addr}>{(cafe.address || cafe.hours).toUpperCase()}</Text>
-          </View>
-          <View style={styles.tableChip}>
-            <Text style={styles.tableChipTxt}>{tableLabel(table)}</Text>
-          </View>
-          <Pressable onPress={() => setBag(true)} style={styles.bagBtn} accessibilityLabel="Open bag">
-            <Text style={styles.bagTxt}>BAG</Text>
-            {totals.count > 0 ? (
-              <View style={[styles.bagBadge, { backgroundColor: accent }]}>
-                <Text style={styles.bagBadgeTxt}>{totals.count}</Text>
-              </View>
-            ) : null}
-          </Pressable>
+      <View style={styles.header}>
+        <View style={styles.logo}>
+          <Text style={styles.logoTxt}>{letter}</Text>
         </View>
-
-        <View style={styles.sticky}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="All Items" active={cat === "all"} onPress={() => setCat("all")} />
-            {categories
-              .slice()
-              .sort((a, b) => a.sort - b.sort)
-              .map((c) => (
-                <Chip key={c.id} label={c.name} active={cat === c.id} onPress={() => setCat(c.id)} />
-              ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {(["all", "veg", "vegan", "gf"] as DietaryFilter[]).map((d) => (
-              <Chip
-                key={d}
-                label={d === "all" ? "All" : d === "veg" ? "Veg" : d === "vegan" ? "Vegan" : "GF"}
-                active={diet === d}
-                onPress={() => setDiet(d)}
-              />
-            ))}
-          </ScrollView>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cafe}>{cafe.name.toUpperCase()}</Text>
+          <Text style={styles.addr}>{(cafe.address || cafe.hours).toUpperCase()}</Text>
         </View>
+        <View style={styles.tableChip}>
+          <Text style={styles.tableChipTxt}>{tableLabel(table)}</Text>
+        </View>
+        <Pressable onPress={() => setBag(true)} style={styles.bagBtn} accessibilityLabel="Open bag">
+          <Text style={styles.bagTxt}>BAG</Text>
+          {totals.count > 0 ? (
+            <View style={[styles.bagBadge, { backgroundColor: accent }]}>
+              <Text style={styles.bagBadgeTxt}>{totals.count}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
 
+      <HeaderTicker messages={cafe.headerMessages || []} accent={accent} />
+
+      <LastCallBanner
+        enabled={cafe.lastCallEnabled}
+        message={cafe.lastCallMessage}
+        endsAt={cafe.lastCallEndsAt}
+      />
+
+      <View style={styles.sticky}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <Chip
+            label="All"
+            active={cat === "all"}
+            onPress={() => {
+              setCat("all");
+              listRef.current?.scrollTo({ y: 0, animated: true });
+            }}
+          />
+          {sortedCats.map((c) => (
+            <Chip
+              key={c.id}
+              label={c.name}
+              active={cat === c.id}
+              onPress={() => {
+                setCat(c.id);
+                listRef.current?.scrollTo({ y: 0, animated: true });
+              }}
+            />
+          ))}
+        </ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {(["all", "veg", "vegan", "gf"] as DietaryFilter[]).map((d) => (
+            <Chip
+              key={d}
+              label={d === "all" ? "Diet" : d === "veg" ? "Veg" : d === "vegan" ? "Vegan" : "GF"}
+              active={diet === d}
+              onPress={() => setDiet(d)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      <ScrollView
+        ref={listRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: totals.count ? 110 : 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {!orderingOn ? (
           <View style={styles.pauseBox}>
             <Text style={styles.pauseTxt}>Ordering paused — please call staff</Text>
@@ -184,7 +221,7 @@ export default function CafeTableMenu() {
 
         {!apiOnline ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Banner kind="err">Menu may be stale — API offline. Orders might not reach the kitchen.</Banner>
+            <Banner kind="err">Menu may be stale — connection issue. Orders might not reach the kitchen.</Banner>
           </View>
         ) : null}
 
@@ -202,25 +239,30 @@ export default function CafeTableMenu() {
         </View>
 
         {!visible.length ? (
-          <Empty title="Nothing here" body="Try another category or dietary filter — or ask staff to update the menu." />
+          <Empty title="Nothing here" body="Try another category or clear search — or ask staff to update the menu." />
         ) : null}
 
-        <View style={styles.grid}>
+        <View style={styles.list}>
           {visible.map((item) => {
             const catName = categories.find((c) => c.id === item.categoryId)?.name || "";
             const q = qtyFor(item.id);
             return (
-              <View key={item.id} style={[styles.cell, { width: cols === 1 ? "100%" : cols === 2 ? "50%" : "33.33%" }]}>
+              <View key={item.id} style={styles.row}>
                 <ItemCard
                   item={item}
                   categoryName={catName}
                   qty={q}
                   currency={cur}
-                  onOpen={() => { if (item.available !== false) setSheet(item); }}
+                  onOpen={() => {
+                    if (item.available !== false) setSheet(item);
+                  }}
                   onAdd={() => {
                     if (item.available === false) return;
                     if (itemHasOptions(item)) setSheet(item);
-                    else { void hapticLight(); addToCart(item.id, {}, table); }
+                    else {
+                      void hapticLight();
+                      addToCart(item.id, {}, table);
+                    }
                   }}
                   onInc={() => bump(item, 1)}
                   onDec={() => bump(item, -1)}
@@ -237,9 +279,11 @@ export default function CafeTableMenu() {
         wait={totals.wait}
         cash={cafe.cashOnly}
         currency={cur}
+        disabled={!canCheckout}
+        disabledLabel={!orderingOn ? "Ordering paused" : "Last call ended"}
         onBag={() => setBag(true)}
         onCheckout={() => {
-          if (!orderingOn) return;
+          if (!canCheckout) return;
           router.push({ pathname: "/checkout", params: { table, slug } } as any);
         }}
       />
@@ -263,18 +307,6 @@ export default function CafeTableMenu() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  strip: {
-    backgroundColor: colors.ink,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  stripTxt: { color: colors.white, fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
-  stripLink: { color: colors.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -295,6 +327,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: colors.white,
+    minHeight: 36,
+    justifyContent: "center",
   },
   tableChipTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1, color: colors.ink },
   bagBtn: {
@@ -302,7 +336,7 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     backgroundColor: colors.white,
     paddingHorizontal: 10,
-    minHeight: 36,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -311,15 +345,16 @@ const styles = StyleSheet.create({
   bagTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: colors.ink },
   bagBadge: { minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   bagBadgeTxt: { fontSize: 10, fontWeight: "800", color: colors.ink },
-  sticky: { backgroundColor: colors.bg, borderBottomWidth: 1, borderColor: colors.ink, paddingTop: 10 },
-  chips: { paddingHorizontal: 16, paddingBottom: 4, alignItems: "center" },
-  banner: { paddingHorizontal: 16, paddingVertical: 20, gap: 8 },
-  pop: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.ink },
-  popTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 1.6, color: colors.ink },
-  bannerTitle: { fontSize: 26, fontWeight: "800", letterSpacing: 0.6, color: colors.ink },
-  bannerSub: { fontSize: 14, color: colors.muted },
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 10, paddingBottom: 12 },
-  cell: { padding: 6 },
+  sticky: {
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderColor: colors.ink,
+    paddingTop: 10,
+    zIndex: 2,
+  },
+  chips: { paddingHorizontal: 16, paddingBottom: 6, alignItems: "center" },
+  list: { paddingHorizontal: 14, paddingTop: 4 },
+  row: { marginBottom: 12 },
   searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   search: {
     borderWidth: 1,

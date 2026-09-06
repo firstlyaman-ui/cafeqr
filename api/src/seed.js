@@ -42,6 +42,11 @@ async function insertCafe(store, cafe) {
       };
     })(),
     ordering_enabled: cafe.ordering_enabled === 0 ? 0 : 1,
+    header_messages: cafe.header_messages || "[]",
+    guest_status_enabled: cafe.guest_status_enabled ? 1 : 0,
+    last_call_enabled: cafe.last_call_enabled ? 1 : 0,
+    last_call_message: cafe.last_call_message || "",
+    last_call_ends_at: cafe.last_call_ends_at ?? null,
   });
   const cafeId = created.id;
 

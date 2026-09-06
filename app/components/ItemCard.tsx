@@ -35,7 +35,7 @@ export function ItemCard({
         disabled={soldOut}
         style={soldOut ? { opacity: 0.55 } : undefined}
       >
-        <Photo uri={item.image} height={168}>
+        <Photo uri={item.image} height={148}>
           <View style={styles.badges}>
             {soldOut ? <Tag label="Sold out" dark /> : null}
             {!soldOut && item.tags.includes("popular") ? <Tag label="Popular" gold /> : null}

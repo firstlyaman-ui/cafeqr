@@ -47,6 +47,7 @@ export function QrImage({
     <View style={[styles.card, { borderColor: colors.ink }]} {...({ className: "qr-sheet" } as any)}>
       <View style={[styles.bar, { backgroundColor: accent }]} />
       {cafeName ? <Text style={styles.cafe}>{cafeName.toUpperCase()}</Text> : null}
+      <Text style={styles.brand}>CafeQred</Text>
       <Text style={styles.scan}>Scan to order</Text>
       {caption ? <Text style={styles.table}>{caption}</Text> : null}
       {uri ? (
@@ -116,6 +117,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textAlign: "center",
   },
+  brand: { fontSize: 10, fontWeight: "800", letterSpacing: 2, color: colors.muted, marginBottom: 4 },
   scan: {
     marginTop: 4,
     fontSize: 10,

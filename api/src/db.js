@@ -154,6 +154,11 @@ CREATE TABLE IF NOT EXISTS cafes (
   staff_user TEXT DEFAULT '',
   staff_password TEXT DEFAULT '',
   ordering_enabled INTEGER DEFAULT 1,
+  header_messages TEXT DEFAULT '[]',
+  guest_status_enabled INTEGER DEFAULT 0,
+  last_call_enabled INTEGER DEFAULT 0,
+  last_call_message TEXT DEFAULT '',
+  last_call_ends_at INTEGER,
   updated_at INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
 );

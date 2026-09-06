@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS cafes (
   staff_user TEXT DEFAULT '',
   staff_password TEXT DEFAULT '',
   ordering_enabled INTEGER DEFAULT 1,
+  header_messages TEXT DEFAULT '[]',
+  guest_status_enabled INTEGER DEFAULT 0,
+  last_call_enabled INTEGER DEFAULT 0,
+  last_call_message TEXT DEFAULT '',
+  last_call_ends_at BIGINT,
   updated_at BIGINT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -93,6 +98,14 @@ function normalizeCafe(row) {
     tax_name: row.tax_name || "Tax",
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     updated_at: row.updated_at === undefined || row.updated_at === null ? 0 : Number(row.updated_at),
+    header_messages: row.header_messages == null || row.header_messages === "" ? "[]" : String(row.header_messages),
+    guest_status_enabled: Number(row.guest_status_enabled || 0),
+    last_call_enabled: Number(row.last_call_enabled || 0),
+    last_call_message: row.last_call_message || "",
+    last_call_ends_at:
+      row.last_call_ends_at === undefined || row.last_call_ends_at === null || row.last_call_ends_at === ""
+        ? null
+        : Number(row.last_call_ends_at),
   };
 }
 
@@ -162,6 +175,11 @@ class PostgresStore {
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS owner_password TEXT DEFAULT ''`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS staff_user TEXT DEFAULT ''`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS staff_password TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS header_messages TEXT DEFAULT '[]'`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS guest_status_enabled INTEGER DEFAULT 0`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS last_call_enabled INTEGER DEFAULT 0`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS last_call_message TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS last_call_ends_at BIGINT`,
     ];
     for (const sql of alters) {
       try {
@@ -286,8 +304,8 @@ class PostgresStore {
 
   async createCafe(row) {
     await this.query(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, header_messages, guest_status_enabled, last_call_enabled, last_call_message, last_call_ends_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
       [
         row.slug,
         row.name,
@@ -310,6 +328,11 @@ class PostgresStore {
         row.staff_user ?? "",
         row.staff_password ?? "",
         row.ordering_enabled ?? 1,
+        row.header_messages ?? "[]",
+        row.guest_status_enabled ?? 0,
+        row.last_call_enabled ?? 0,
+        row.last_call_message ?? "",
+        row.last_call_ends_at ?? null,
         row.updated_at ?? Date.now(),
       ]
     );
@@ -333,8 +356,13 @@ class PostgresStore {
         alt_milk_price = COALESCE($12, alt_milk_price),
         extra_shot_price = COALESCE($13, extra_shot_price),
         ordering_enabled = COALESCE($14, ordering_enabled),
-        updated_at = $15
-       WHERE id = $16`,
+        header_messages = COALESCE($15, header_messages),
+        guest_status_enabled = COALESCE($16, guest_status_enabled),
+        last_call_enabled = COALESCE($17, last_call_enabled),
+        last_call_message = COALESCE($18, last_call_message),
+        last_call_ends_at = CASE WHEN $19::int = 1 THEN $20 ELSE last_call_ends_at END,
+        updated_at = $21
+       WHERE id = $22`,
       [
         fields.name ?? null,
         fields.tagline ?? null,
@@ -350,6 +378,12 @@ class PostgresStore {
         fields.alt_milk_price ?? null,
         fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
+        fields.header_messages ?? null,
+        fields.guest_status_enabled ?? null,
+        fields.last_call_enabled ?? null,
+        fields.last_call_message ?? null,
+        Object.prototype.hasOwnProperty.call(fields, "last_call_ends_at") ? 1 : 0,
+        Object.prototype.hasOwnProperty.call(fields, "last_call_ends_at") ? fields.last_call_ends_at : null,
         Date.now(),
         id,
       ]

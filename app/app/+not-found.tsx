@@ -9,7 +9,7 @@ export default function NotFoundScreen() {
       <Kicker>404</Kicker>
       <Text style={styles.title}>THIS PAGE IS OFF THE MENU</Text>
       <Text style={styles.body}>The table code or screen you opened doesn’t exist.</Text>
-      <Btn label="Back to CafeQR" href="/" />
+      <Btn label="Back to CafeQred" href="/" />
     </View>
   );
 }

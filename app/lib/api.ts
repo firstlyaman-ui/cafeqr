@@ -41,6 +41,11 @@ export type ApiCafe = {
   altMilkPrice?: number;
   extraShotPrice?: number;
   orderingEnabled?: boolean;
+  headerMessages?: string[];
+  guestStatusEnabled?: boolean;
+  lastCallEnabled?: boolean;
+  lastCallMessage?: string;
+  lastCallEndsAt?: number | null;
   updatedAt?: number;
 };
 

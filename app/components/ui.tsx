@@ -59,7 +59,7 @@ export function BrandMark({ accent = colors.gold, light = false }: { accent?: st
       <View style={[styles.brandSq, { backgroundColor: light ? colors.white : colors.ink }]}>
         <View style={[styles.brandDot, { backgroundColor: accent }]} />
       </View>
-      <Text style={[styles.brandName, light && { color: colors.white }]}>CafeQR</Text>
+      <Text style={[styles.brandName, light && { color: colors.white }]}>CafeQred</Text>
     </View>
   );
 }
@@ -267,7 +267,7 @@ export function Hairline() {
 
 export function Photo({
   uri,
-  height = 160,
+  height = 140,
   children,
 }: {
   uri: string;
@@ -276,7 +276,14 @@ export function Photo({
 }) {
   return (
     <View style={[styles.photo, { height }]}>
-      <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        // @ts-expect-error web lazy loading
+        loading="lazy"
+        accessibilityIgnoresInvertColors
+      />
       {children}
     </View>
   );
@@ -395,6 +402,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   chip: {
+    minHeight: 44,
+    justifyContent: "center",
     minHeight: 40,
     paddingHorizontal: 14,
     borderWidth,
@@ -436,16 +445,16 @@ const styles = StyleSheet.create({
   photo: { width: "100%", backgroundColor: colors.wash, overflow: "hidden" },
   stepper: { flexDirection: "row", borderWidth, borderColor: colors.line, borderRadius: radius, overflow: "hidden", alignSelf: "flex-start" },
   stepBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.white,
   },
   stepPlus: { backgroundColor: colors.gold },
   stepMid: {
-    minWidth: 36,
-    height: 36,
+    minWidth: 40,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.ink,
@@ -457,7 +466,7 @@ const styles = StyleSheet.create({
   stepGlyph: { fontSize: 18, fontWeight: "700", color: colors.ink, marginTop: -1 },
   addBtn: {
     backgroundColor: colors.ink,
-    minHeight: 36,
+    minHeight: 44,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",

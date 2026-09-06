@@ -1,4 +1,4 @@
-# CafeQR (Expo app)
+# CafeQred (Expo app)
 
 Multi-cafe QR ordering — guest menu, bag/checkout, staff board, owner setup.
 

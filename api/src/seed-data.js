@@ -29,6 +29,14 @@ const velvetBean = {
   tax_rate: 0.08,
   owner_pin: "1234",
   staff_pin: "1234",
+  header_messages: JSON.stringify([
+    "House specials change daily — ask the counter",
+    "Cash only — pay with your order # and PIN",
+  ]),
+  guest_status_enabled: 0,
+  last_call_enabled: 0,
+  last_call_message: "Kitchen is closing — last orders now",
+  last_call_ends_at: null,
   categories: [
     { id: "vb-coffee", name: "Coffee & Drinks", sort: 1 },
     { id: "vb-teas", name: "Artisan Teas", sort: 2 },
@@ -267,6 +275,14 @@ const spiceLane = {
   tax_rate: 0.05,
   owner_pin: "1234",
   staff_pin: "1234",
+  header_messages: JSON.stringify([
+    "Try the cutting chai with bun maska",
+    "Cash only — pay with your order # and PIN",
+  ]),
+  guest_status_enabled: 0,
+  last_call_enabled: 0,
+  last_call_message: "Last call — kitchen closing soon",
+  last_call_ends_at: null,
   categories: [
     { id: "sl-drinks", name: "Chai & Drinks", sort: 1 },
     { id: "sl-snacks", name: "Snacks", sort: 2 },
@@ -401,6 +417,14 @@ const himalayanBeans = {
   tax_rate: 0.13,
   owner_pin: "1234",
   staff_pin: "1234",
+  header_messages: JSON.stringify([
+    "Namaste — ask about today's momo",
+    "Cash only — pay with your order # and PIN",
+  ]),
+  guest_status_enabled: 0,
+  last_call_enabled: 0,
+  last_call_message: "Last call — kitchen closing soon",
+  last_call_ends_at: null,
   categories: [
     { id: "hb-drinks", name: "Chiya & Coffee", sort: 1 },
     { id: "hb-eats", name: "Khaja & Momo", sort: 2 },

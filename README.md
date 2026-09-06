@@ -1,4 +1,4 @@
-# CafeQR
+# CafeQred
 
 QR table menu + cash ordering for small cafes. This monorepo has two parts:
 
@@ -95,7 +95,7 @@ Owner and staff PIN for seeded demos (Velvet Bean / Spice Lane / Himalayan Beans
 ## Layout
 
 ```
-CafeQR/
+CafeQred/
   api/          Express API + SQLite
   app/          Expo Router app
   README.md
@@ -152,6 +152,18 @@ Demo paths (customer): `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`, `/c/himalaya
 | web apps | `EXPO_PUBLIC_OWNER_URL` | `https://cafeqr-owner.vercel.app` |
 | `cafeqr-api` | `DATABASE_URL` | Durable Postgres (recommended) |
 | `cafeqr-api` | `CORS_ORIGINS` | Allowlist (cafeqr-five / staff / owner + localhost); wildcard pattern also allows `cafeqr*.vercel.app` |
+
+
+### Google products (optional)
+
+| Variable | Purpose |
+|----------|---------|
+| `EXPO_PUBLIC_GOOGLE_CLIENT_ID` | OAuth **Web** client ID for “Continue with Google” on the guest welcome screen (GIS on web; AuthSession when available). Guest path always works without it. |
+| `EXPO_PUBLIC_GA_ID` | GA4 measurement ID (e.g. `G-XXXX`). Pageviews on landing / menu / order when set; no-op when unset. |
+
+Also built-in (no key): Google Fonts (DM Sans + Fraunces on web), Google Maps links from cafe address (`maps.google.com` search — no Maps JS billing).
+
+Later / not in this pitch: AdMob, Gmail API, YouTube, Cloud Vision, Play Console listing, Google Pay / UPI.
 
 Health: `GET https://cafeqr-api.vercel.app/health` → `{ ok, db, driver, version }`
 

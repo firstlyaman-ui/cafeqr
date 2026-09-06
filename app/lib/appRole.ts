@@ -1,4 +1,4 @@
-/** Build-time app role for the three CafeQR web deployments. */
+/** Build-time app role for the three CafeQred web deployments. */
 
 export type AppRole = "customer" | "staff" | "owner";
 

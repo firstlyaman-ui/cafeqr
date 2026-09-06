@@ -49,6 +49,14 @@ export interface CafeProfile {
   extraShotPrice: number;
   address: string;
   orderingEnabled: boolean;
+  /** Rotating ticker lines under cafe name (owner-set) */
+  headerMessages: string[];
+  /** When false, guest order status page hides live detail */
+  guestStatusEnabled: boolean;
+  lastCallEnabled: boolean;
+  lastCallMessage: string;
+  /** Epoch ms when last-call window ends; null if unset */
+  lastCallEndsAt: number | null;
   /** Epoch ms; bumps on profile/menu changes for guest live refresh */
   updatedAt?: number;
 }

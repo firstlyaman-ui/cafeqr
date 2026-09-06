@@ -1,5 +1,5 @@
 import { Redirect, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { MotionView, softFade, softFadeUp } from "@/components/motion";
@@ -9,6 +9,7 @@ import {
   isOwnerApp,
   isStaffApp,
 } from "@/lib/appRole";
+import { trackPageview } from "@/lib/google";
 import { useStore } from "@/lib/store";
 import { colors, shadow } from "@/lib/theme";
 
@@ -32,6 +33,10 @@ const STEPS = [
 
 export default function Landing() {
   const { ready, cafeList, apiOnline, refreshCafeList } = useStore();
+
+  useEffect(() => {
+    trackPageview("/", "CafeQred landing");
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -71,7 +76,7 @@ export default function Landing() {
       <MotionView entering={softFade(80)} style={styles.hero}>
         <Text style={styles.headline}>Replace paper menus{"\n"}with table QRs.</Text>
         <Text style={styles.lede}>
-          Scan a table QR, order on your phone, pay cash at the counter.
+          CafeQred — scan a table QR, order on your phone, pay cash at the counter.
         </Text>
       </MotionView>
 

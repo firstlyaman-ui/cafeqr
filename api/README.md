@@ -1,4 +1,4 @@
-# CafeQR API
+# CafeQred API
 
 Express API. Set DATABASE_URL for Postgres (Neon). Without it, SQLite/sql.js (ephemeral on Vercel /tmp).
 

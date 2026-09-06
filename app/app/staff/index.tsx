@@ -43,7 +43,11 @@ function Ticket({
         {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}
       </Text>
       {order.status === "new" && order.confirmCode ? (
-        <Text style={styles.code}>CODE {order.confirmCode}</Text>
+        <View style={styles.pinBox}>
+          <Text style={styles.pinLbl}>ORDER · PIN</Text>
+          <Text style={styles.pinId}>{order.id}</Text>
+          <Text style={styles.pinCode}>{order.confirmCode}</Text>
+        </View>
       ) : null}
       <Text style={styles.ago}>{timeAgo(order.createdAt)}</Text>
       {order.items.map((l, i) => (
@@ -257,6 +261,17 @@ const styles = StyleSheet.create({
   stTxt: { color: colors.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   table: { fontWeight: "800", color: colors.ink, fontSize: 13 },
   code: { fontSize: 16, fontWeight: "800", letterSpacing: 2, color: colors.gold },
+  pinBox: {
+    backgroundColor: colors.ink,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+    marginVertical: 4,
+  },
+  pinLbl: { color: colors.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1.6 },
+  pinId: { color: colors.white, fontSize: 14, fontWeight: "800", letterSpacing: 0.4 },
+  pinCode: { color: colors.gold, fontSize: 28, fontWeight: "800", letterSpacing: 6, marginTop: 2 },
   ago: { color: colors.muted, fontSize: 12 },
   line: { fontSize: 13, color: colors.ink },
   notes: { fontSize: 12, color: colors.muted, fontStyle: "italic" },

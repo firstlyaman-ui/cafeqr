@@ -12,6 +12,8 @@ export function CartBar({
   onBag,
   onCheckout,
   currency = "USD",
+  disabled,
+  disabledLabel,
 }: {
   count: number;
   total: number;
@@ -20,15 +22,17 @@ export function CartBar({
   onBag: () => void;
   onCheckout: () => void;
   currency?: string;
+  disabled?: boolean;
+  disabledLabel?: string;
 }) {
   if (count <= 0) return null;
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View style={styles.bar}>
-        <View style={styles.count}>
+        <Pressable onPress={onBag} style={styles.count} accessibilityLabel="View bag">
           <Text style={styles.countTxt}>{count}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
+        </Pressable>
+        <Pressable onPress={onBag} style={{ flex: 1 }} accessibilityLabel="View bag details">
           <View style={styles.row}>
             <Text style={styles.total}>{money(total, currency)}</Text>
             {cash ? (
@@ -37,13 +41,19 @@ export function CartBar({
               </View>
             ) : null}
           </View>
-          <Text style={styles.wait}>Est. Prep: ~{waitCopy(wait)}</Text>
-        </View>
-        <Pressable onPress={onBag} style={styles.view} accessibilityLabel="View bag">
-          <Text style={styles.viewTxt}>VIEW BAG</Text>
+          <Text style={styles.wait}>
+            {disabled ? disabledLabel || "Ordering closed" : `Est. prep ~${waitCopy(wait)}`}
+          </Text>
         </Pressable>
-        <Pressable onPress={onCheckout} style={styles.out} accessibilityLabel="Checkout">
-          <Text style={styles.outTxt}>CHECKOUT ›</Text>
+        <Pressable
+          onPress={disabled ? undefined : onCheckout}
+          style={[styles.out, disabled && styles.outOff]}
+          accessibilityLabel={disabled ? disabledLabel || "Checkout unavailable" : "Checkout"}
+          disabled={!!disabled}
+        >
+          <Text style={[styles.outTxt, disabled && styles.outTxtOff]}>
+            {disabled ? "CLOSED" : "CHECKOUT ›"}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -57,11 +67,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 12,
+    paddingBottom: 16,
     alignItems: "center",
   },
   bar: {
     width: "100%",
-    maxWidth: 720,
+    maxWidth: 560,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -70,12 +81,11 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     borderRadius: radius,
     padding: 8,
-    paddingRight: 8,
     ...shadow.hard,
   },
   count: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     backgroundColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
@@ -88,24 +98,16 @@ const styles = StyleSheet.create({
   cash: { backgroundColor: colors.gold, paddingHorizontal: 6, paddingVertical: 2 },
   cashTxt: { fontSize: 9, fontWeight: "800", letterSpacing: 1, color: colors.ink },
   wait: { color: colors.gold, fontSize: 11, letterSpacing: 0.6, marginTop: 2, fontWeight: "700" },
-  view: {
-    minHeight: 44,
-    paddingHorizontal: 12,
-    backgroundColor: colors.grayBtn,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth,
-    borderColor: colors.ink,
-  },
-  viewTxt: { color: colors.white, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
   out: {
-    minHeight: 44,
-    paddingHorizontal: 12,
+    minHeight: 48,
+    paddingHorizontal: 16,
     backgroundColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
     borderWidth,
     borderColor: colors.ink,
   },
-  outTxt: { color: colors.ink, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  outOff: { backgroundColor: colors.grayBtn },
+  outTxt: { color: colors.ink, fontSize: 12, fontWeight: "800", letterSpacing: 1.2 },
+  outTxtOff: { color: colors.white },
 });

@@ -83,6 +83,11 @@ function mapApiCafe(c: {
   altMilkPrice?: number;
   extraShotPrice?: number;
   orderingEnabled?: boolean;
+  headerMessages?: string[];
+  guestStatusEnabled?: boolean;
+  lastCallEnabled?: boolean;
+  lastCallMessage?: string;
+  lastCallEndsAt?: number | null;
   updatedAt?: number;
 }): CafeProfile {
   const currency = (c.currency === "INR" || c.currency === "NPR" || c.currency === "USD" ? c.currency : "USD") as CafeProfile["currency"];
@@ -118,6 +123,16 @@ function mapApiCafe(c: {
     altMilkPrice,
     extraShotPrice,
     orderingEnabled: c.orderingEnabled !== false,
+    headerMessages: Array.isArray(c.headerMessages)
+      ? c.headerMessages.map((s) => String(s || "").trim()).filter(Boolean)
+      : [],
+    guestStatusEnabled: !!c.guestStatusEnabled,
+    lastCallEnabled: !!c.lastCallEnabled,
+    lastCallMessage: c.lastCallMessage ? String(c.lastCallMessage) : "",
+    lastCallEndsAt:
+      c.lastCallEndsAt === undefined || c.lastCallEndsAt === null || c.lastCallEndsAt === ("" as any)
+        ? null
+        : Number(c.lastCallEndsAt),
     updatedAt: typeof c.updatedAt === "number" ? c.updatedAt : undefined,
   };
 }
@@ -299,6 +314,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             altMilkPrice: 0.5,
             extraShotPrice: 0.75,
             orderingEnabled: true,
+            headerMessages: [],
+            guestStatusEnabled: false,
+            lastCallEnabled: false,
+            lastCallMessage: "",
+            lastCallEndsAt: null,
           },
           [],
           [],
@@ -735,6 +755,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const s = stateRef.current;
       if (!s.cart.length) return null;
       if (s.cafe.orderingEnabled === false) return null;
+      if (
+        s.cafe.lastCallEnabled &&
+        s.cafe.lastCallEndsAt &&
+        Number(s.cafe.lastCallEndsAt) <= Date.now()
+      ) {
+        return null;
+      }
       // Drop sold-out lines
       const sellable = s.cart.filter((line) => {
         const item = s.items.find((i) => i.id === line.itemId);

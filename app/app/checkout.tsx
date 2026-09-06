@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { LastCallBanner, lastCallExpired } from "@/components/LastCallBanner";
 import { Btn, Field, Loading, Screen } from "@/components/ui";
 import { cartTotals, isGstSplit, lineUnitPrice, money, optionBlurb, padTable, tableLabel, taxLabel, waitCopy } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -22,12 +23,14 @@ export default function Checkout() {
   const totals = cartTotals(cart, items, cafe);
   const cur = cafe.currency || "USD";
   const orderingOn = cafe.orderingEnabled !== false;
+  const callEnded = lastCallExpired(cafe);
+  const canOrder = orderingOn && !callEnded;
 
   if (!ready) return <Loading />;
 
   const submit = async () => {
-    if (!orderingOn) {
-      setErr("Ordering paused — please call staff.");
+    if (!canOrder) {
+      setErr(callEnded ? (cafe.lastCallMessage || "Last call ended — kitchen closed for new orders") : "Ordering paused — please call staff.");
       void hapticError();
       return;
     }
@@ -74,6 +77,12 @@ export default function Checkout() {
             <Text style={styles.pauseTxt}>Ordering paused — please call staff</Text>
           </View>
         ) : null}
+        <LastCallBanner
+          enabled={cafe.lastCallEnabled}
+          message={cafe.lastCallMessage}
+          endsAt={cafe.lastCallEndsAt}
+          compact
+        />
 
         <View style={styles.card}>
           <Text style={styles.lbl}>Dining option</Text>
@@ -168,7 +177,7 @@ export default function Checkout() {
         <Btn
           label={busy ? "Placing…" : "Place cash order"}
           onPress={submit}
-          disabled={!cart.length || busy || !orderingOn}
+          disabled={!cart.length || busy || !canOrder}
           variant="gold"
         />
         <View style={{ height: 10 }} />

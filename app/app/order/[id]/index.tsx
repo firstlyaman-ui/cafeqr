@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { confirmOnce } from "@/lib/confirm";
+import { trackPageview } from "@/lib/google";
 
 import { Btn, Loading, Screen } from "@/components/ui";
 import { isGstSplit, money, statusLabel, tableLabel, taxLabel, waitCopy } from "@/lib/format";
@@ -23,6 +24,10 @@ export default function OrderStatusScreen() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const order = orders.find((o) => o.id === id);
+
+  useEffect(() => {
+    if (id) trackPageview(`/order/${id}`, "Order status");
+  }, [id]);
 
   useEffect(() => {
     if (!ready || !id || !apiOnline) return;
@@ -65,28 +70,37 @@ export default function OrderStatusScreen() {
         <Text style={styles.sub}>
           {authErr || "That ticket isn’t on the board. Ask staff, or start a new order."}
         </Text>
-        <Btn label="Back to CafeQR" href="/" />
+        <Btn label="Back to CafeQred" href="/" />
       </Screen>
     );
   }
 
   const idx = STEPS.indexOf(order.status);
   const half = Math.round((order.tax / 2) * 100) / 100;
+  const statusOn = cafe.guestStatusEnabled === true;
 
   return (
     <Screen maxWidth={560}>
       <Text style={styles.k}>Ticket {order.id}</Text>
       <Text style={styles.h}>{order.status === "cancelled" ? "ORDER CANCELLED" : "WE HAVE YOUR ORDER"}</Text>
       <Text style={styles.sub}>
-        {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}. Status:{" "}
-        {statusLabel(order.status)}.
+        {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}
+        {statusOn ? `. Status: ${statusLabel(order.status)}.` : "."}
       </Text>
       {authErr ? <Text style={[styles.sub, { color: "#B00020" }]}>{authErr}</Text> : null}
 
       {order.status === "new" && order.confirmCode ? (
         <View style={styles.codeBox}>
-          <Text style={styles.codeLbl}>Show this code to staff</Text>
+          <Text style={styles.codeLbl}>Pay at counter · order # + PIN</Text>
           <Text style={styles.code}>{order.confirmCode}</Text>
+          <Text style={{ color: colors.gold, marginTop: 8, fontWeight: "700" }}>{order.id}</Text>
+        </View>
+      ) : null}
+
+      {!statusOn && order.status !== "cancelled" ? (
+        <View style={[styles.card, { backgroundColor: "#F5F4F0" }]}>
+          <Text style={styles.cardK}>Status updates</Text>
+          <Text style={styles.pay}>Status updates when staff shares them. Keep your order # and PIN handy at the counter.</Text>
         </View>
       ) : null}
 
@@ -97,7 +111,7 @@ export default function OrderStatusScreen() {
         </View>
       ) : null}
 
-      {order.status !== "cancelled" ? (
+      {statusOn && order.status !== "cancelled" ? (
       <View style={styles.track}>
         {STEPS.map((s, i) => (
           <View key={s} style={[styles.step, i <= idx && { backgroundColor: colors.ink }]}>

@@ -77,8 +77,8 @@ class SqliteStore {
   async createCafe(row) {
     this.db
       .prepare(
-        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, header_messages, guest_status_enabled, last_call_enabled, last_call_message, last_call_ends_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.slug,
@@ -102,6 +102,11 @@ class SqliteStore {
         row.staff_user ?? "",
         row.staff_password ?? "",
         row.ordering_enabled ?? 1,
+        row.header_messages ?? "[]",
+        row.guest_status_enabled ?? 0,
+        row.last_call_enabled ?? 0,
+        row.last_call_message ?? "",
+        row.last_call_ends_at ?? null,
         row.updated_at ?? Date.now()
       );
     return this.getCafeBySlug(row.slug);
@@ -125,6 +130,11 @@ class SqliteStore {
           alt_milk_price = COALESCE(?, alt_milk_price),
           extra_shot_price = COALESCE(?, extra_shot_price),
           ordering_enabled = COALESCE(?, ordering_enabled),
+          header_messages = COALESCE(?, header_messages),
+          guest_status_enabled = COALESCE(?, guest_status_enabled),
+          last_call_enabled = COALESCE(?, last_call_enabled),
+          last_call_message = COALESCE(?, last_call_message),
+          last_call_ends_at = CASE WHEN ? = 1 THEN ? ELSE last_call_ends_at END,
           updated_at = ?
          WHERE id = ?`
       )
@@ -143,6 +153,12 @@ class SqliteStore {
         fields.alt_milk_price ?? null,
         fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
+        fields.header_messages ?? null,
+        fields.guest_status_enabled ?? null,
+        fields.last_call_enabled ?? null,
+        fields.last_call_message ?? null,
+        Object.prototype.hasOwnProperty.call(fields, "last_call_ends_at") ? 1 : 0,
+        Object.prototype.hasOwnProperty.call(fields, "last_call_ends_at") ? fields.last_call_ends_at : null,
         Date.now(),
         id
       );

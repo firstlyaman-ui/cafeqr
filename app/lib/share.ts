@@ -48,7 +48,7 @@ export async function shareReceipt(cafe: CafeProfile, order: Order): Promise<voi
     return;
   }
   try {
-    await Share.share({ message: text, title: `CafeQR ${order.id}` });
+    await Share.share({ message: text, title: `CafeQred ${order.id}` });
   } catch {
     /* cancelled */
   }

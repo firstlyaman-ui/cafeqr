@@ -10,25 +10,32 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
         <meta
           name="description"
-          content="CafeQR — table QR menus and cash ordering for independent cafes. Print codes, add your menu, go live in one sitting."
+          content="CafeQred — table QR menus and cash ordering for independent cafes. Print codes, add your menu, go live in one sitting."
         />
         <meta name="theme-color" content="#F5F4F0" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="CafeQR" />
+        <meta name="apple-mobile-web-app-title" content="CafeQred" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta property="og:title" content="CafeQR — QR menus for small cafes" />
+        <meta property="og:title" content="CafeQred — QR menus for small cafes" />
         <meta
           property="og:description"
           content="Table QR menus and cash ordering for independent cafés."
         />
-        <title>CafeQR — QR menus for small cafes</title>
+        <title>CafeQred — QR menus for small cafes</title>
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+          rel="stylesheet"
+        />
         <ScrollViewStyleReset />
         <style
           dangerouslySetInnerHTML={{
             __html: `
               html, body, #root { height: 100%; background: #F5F4F0; }
-              body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+              body { margin: 0; font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+              h1, h2, .font-display { font-family: Fraunces, Georgia, "Times New Roman", serif; }
               input, textarea, button { font-family: inherit; }
               * { box-sizing: border-box; }
               @media print {

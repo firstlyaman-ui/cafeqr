@@ -58,6 +58,22 @@ function genConfirmCode() {
   return String(1000 + Math.floor(Math.random() * 9000));
 }
 
+
+function parseHeaderMessages(raw) {
+  if (Array.isArray(raw)) return raw.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 12);
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw || "[]");
+      if (Array.isArray(p)) return parseHeaderMessages(p);
+    } catch (_) {}
+  }
+  return [];
+}
+
+function serializeHeaderMessages(msgs) {
+  return JSON.stringify(parseHeaderMessages(msgs));
+}
+
 function mapCafe(row) {
   if (!row) return null;
   return {
@@ -78,6 +94,14 @@ function mapCafe(row) {
     extraShotPrice: cafeExtraShotPrice(row),
     orderingEnabled:
       row.ordering_enabled === undefined || row.ordering_enabled === null ? true : !!row.ordering_enabled,
+    headerMessages: parseHeaderMessages(row.header_messages),
+    guestStatusEnabled: !!Number(row.guest_status_enabled || 0),
+    lastCallEnabled: !!Number(row.last_call_enabled || 0),
+    lastCallMessage: row.last_call_message || "",
+    lastCallEndsAt:
+      row.last_call_ends_at === undefined || row.last_call_ends_at === null || row.last_call_ends_at === ""
+        ? null
+        : Number(row.last_call_ends_at),
     updatedAt: row.updated_at === undefined || row.updated_at === null ? 0 : Number(row.updated_at),
     createdAt: row.created_at,
   };
@@ -519,6 +543,48 @@ async function createApp() {
           return null;
         })(),
         ordering_enabled: orderingEnabled,
+        header_messages: (() => {
+          if (b.headerMessages !== undefined) return serializeHeaderMessages(b.headerMessages);
+          if (b.header_messages !== undefined) return serializeHeaderMessages(b.header_messages);
+          return null;
+        })(),
+        guest_status_enabled: (() => {
+          if (b.guestStatusEnabled !== undefined) return b.guestStatusEnabled ? 1 : 0;
+          if (b.guest_status_enabled !== undefined) return Number(b.guest_status_enabled) ? 1 : 0;
+          return null;
+        })(),
+        last_call_enabled: (() => {
+          if (b.lastCallEnabled !== undefined) return b.lastCallEnabled ? 1 : 0;
+          if (b.last_call_enabled !== undefined) return Number(b.last_call_enabled) ? 1 : 0;
+          return null;
+        })(),
+        last_call_message: (() => {
+          if (b.lastCallMessage !== undefined) return String(b.lastCallMessage);
+          if (b.last_call_message !== undefined) return String(b.last_call_message);
+          return null;
+        })(),
+        ...(() => {
+          const minsRaw = b.lastCallMinutes ?? b.last_call_minutes;
+          if (minsRaw !== undefined && minsRaw !== null && String(minsRaw) !== "") {
+            const mins = Number(minsRaw);
+            if (Number.isFinite(mins) && mins > 0) {
+              return {
+                last_call_enabled: 1,
+                last_call_ends_at: Date.now() + Math.min(24 * 60, mins) * 60_000,
+              };
+            }
+          }
+          if (b.lastCallEndsAt !== undefined || b.last_call_ends_at !== undefined) {
+            const raw = b.lastCallEndsAt !== undefined ? b.lastCallEndsAt : b.last_call_ends_at;
+            if (raw === null || raw === "") return { last_call_ends_at: null };
+            const n = Number(raw);
+            return { last_call_ends_at: Number.isFinite(n) ? n : null };
+          }
+          if (b.lastCallEnabled === false || b.last_call_enabled === 0 || b.last_call_enabled === false) {
+            return { last_call_ends_at: null };
+          }
+          return {};
+        })(),
       });
       res.json(mapCafe(updated));
     })
@@ -805,6 +871,18 @@ async function createApp() {
           ? true
           : !!cafe.ordering_enabled;
       if (!orderingOn) return sendError(res, 403, "ORDERING_PAUSED", "Ordering paused — please call staff");
+
+      const lastCallOn = !!Number(cafe.last_call_enabled || 0);
+      const endsAt =
+        cafe.last_call_ends_at === undefined || cafe.last_call_ends_at === null || cafe.last_call_ends_at === ""
+          ? null
+          : Number(cafe.last_call_ends_at);
+      if (lastCallOn && endsAt && endsAt <= Date.now()) {
+        const msg =
+          (cafe.last_call_message && String(cafe.last_call_message).trim()) ||
+          "Last call — kitchen is closed for new orders";
+        return sendError(res, 403, "LAST_CALL_ENDED", msg);
+      }
 
       const parsed = placeOrderSchema.safeParse(req.body || {});
       if (!parsed.success) return fromZod(res, parsed.error);

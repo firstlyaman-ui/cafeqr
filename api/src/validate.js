@@ -69,6 +69,18 @@ const patchCafeSchema = z.object({
   extra_shot_price: z.union([z.number(), z.string()]).optional(),
   orderingEnabled: z.boolean().optional(),
   ordering_enabled: z.union([z.number(), z.boolean()]).optional(),
+  headerMessages: z.array(z.string()).optional(),
+  header_messages: z.union([z.array(z.string()), z.string()]).optional(),
+  guestStatusEnabled: z.boolean().optional(),
+  guest_status_enabled: z.union([z.number(), z.boolean()]).optional(),
+  lastCallEnabled: z.boolean().optional(),
+  last_call_enabled: z.union([z.number(), z.boolean()]).optional(),
+  lastCallMessage: z.string().max(280).optional(),
+  last_call_message: z.string().max(280).optional(),
+  lastCallEndsAt: z.union([z.number(), z.string(), z.null()]).optional(),
+  last_call_ends_at: z.union([z.number(), z.string(), z.null()]).optional(),
+  lastCallMinutes: z.union([z.number(), z.string()]).optional(),
+  last_call_minutes: z.union([z.number(), z.string()]).optional(),
 }).passthrough();
 
 const categorySchema = z.object({

@@ -44,7 +44,7 @@ export function RoleGuard({ children }: { children: React.ReactNode }) {
         <Text style={styles.k}>{APP_ROLE.toUpperCase()} APP</Text>
         <Text style={styles.h}>Wrong app for this page</Text>
         <Text style={styles.body}>
-          This build only serves {APP_ROLE} flows. Use the matching CafeQR app URL instead.
+          This build only serves {APP_ROLE} flows. Use the matching CafeQred app URL instead.
         </Text>
         <View style={{ gap: 10, marginTop: 16, width: "100%", maxWidth: 360 }}>
           <Btn label={other.label} onPress={() => openExternal(other.url)} variant="gold" />

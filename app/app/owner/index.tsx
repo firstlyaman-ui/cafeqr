@@ -78,6 +78,11 @@ export default function Owner() {
   const [tables, setTables] = useState(String(cafe.tableCount));
   const [cash, setCash] = useState(cafe.cashOnly);
   const [orderingOn, setOrderingOn] = useState(cafe.orderingEnabled !== false);
+  const [headerLines, setHeaderLines] = useState((cafe.headerMessages || []).join("\n"));
+  const [guestStatusOn, setGuestStatusOn] = useState(!!cafe.guestStatusEnabled);
+  const [lastCallOn, setLastCallOn] = useState(!!cafe.lastCallEnabled);
+  const [lastCallMsg, setLastCallMsg] = useState(cafe.lastCallMessage || "");
+  const [lastCallMins, setLastCallMins] = useState("30");
   const [country, setCountry] = useState((cafe.country || "US").toUpperCase());
   const [currency, setCurrency] = useState(cafe.currency || "USD");
   const [taxName, setTaxName] = useState(cafe.taxName || "Tax");
@@ -127,6 +132,10 @@ export default function Owner() {
     setTables(String(cafe.tableCount));
     setCash(cafe.cashOnly);
     setOrderingOn(cafe.orderingEnabled !== false);
+    setHeaderLines((cafe.headerMessages || []).join("\n"));
+    setGuestStatusOn(!!cafe.guestStatusEnabled);
+    setLastCallOn(!!cafe.lastCallEnabled);
+    setLastCallMsg(cafe.lastCallMessage || "");
     setCountry((cafe.country || "US").toUpperCase());
     setCurrency(cafe.currency || "USD");
     setTaxName(cafe.taxName || "Tax");
@@ -184,7 +193,12 @@ export default function Owner() {
     try {
       const pct = parseMoneyInput(taxPct);
       const rate = Math.min(1, Math.max(0, pct / 100));
-      const r = await saveCafe({
+      const msgs = headerLines
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 12);
+      const payload: any = {
         name: name.trim() || cafe.name,
         tagline,
         hours,
@@ -197,7 +211,18 @@ export default function Owner() {
         currency: (currency.trim().toUpperCase() || "USD") as any,
         taxName: taxName.trim() || "Tax",
         taxRate: rate,
-      });
+        headerMessages: msgs,
+        guestStatusEnabled: guestStatusOn,
+        lastCallEnabled: lastCallOn,
+        lastCallMessage: lastCallMsg.trim(),
+      };
+      if (lastCallOn) {
+        const mins = parseIntInput(lastCallMins, 0);
+        if (mins > 0) payload.lastCallMinutes = mins;
+      } else {
+        payload.lastCallEndsAt = null;
+      }
+      const r = await saveCafe(payload);
       if (r.ok) {
         // Name/profile already in store + cafeList; refresh list again for other tabs/sessions
         void refreshCafeList();
@@ -454,6 +479,49 @@ export default function Owner() {
             Nepal: country NP → NPR + VAT 13%. Prices stay as you set them; only tax/currency labels change.
           </Text>
           <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.h2}>Guest pitch controls</Text>
+          <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 8 }}>
+            Rotating ticker under the cafe name, guest status visibility, and last call.
+          </Text>
+          <Field
+            label="Ticker messages (one per line)"
+            value={headerLines}
+            onChangeText={setHeaderLines}
+            multiline
+            placeholder={"Ask staff about today's specials\nCash only — pay with order # and PIN"}
+          />
+          <Toggle
+            label={guestStatusOn ? "Guest order status · visible" : "Guest order status · hidden"}
+            on={guestStatusOn}
+            onPress={() => setGuestStatusOn((v) => !v)}
+          />
+          <Toggle
+            label={lastCallOn ? "Last call · on" : "Last call · off"}
+            on={lastCallOn}
+            onPress={() => setLastCallOn((v) => !v)}
+          />
+          <Field
+            label="Last call message"
+            value={lastCallMsg}
+            onChangeText={setLastCallMsg}
+            placeholder="Kitchen is closing — last orders now"
+          />
+          <Field
+            label="End last call in N minutes (on Save)"
+            value={lastCallMins}
+            onChangeText={setLastCallMins}
+            keyboardType="number-pad"
+            placeholder="30"
+          />
+          {cafe.lastCallEnabled && cafe.lastCallEndsAt ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Active until {new Date(cafe.lastCallEndsAt).toLocaleString()}
+            </Text>
+          ) : null}
+          <Btn label={busy ? "Saving…" : "Save guest controls"} onPress={() => void saveProfile()} disabled={busy} />
         </View>
 
         <View style={styles.card}>
@@ -939,6 +1007,7 @@ export default function Owner() {
 }
 
 const styles = StyleSheet.create({
+  h2: { fontSize: 16, fontWeight: "800", color: colors.ink, marginBottom: 6 },
   top: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" },
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
   h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.2, color: colors.ink, marginTop: 6 },

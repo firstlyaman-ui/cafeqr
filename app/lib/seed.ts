@@ -16,6 +16,14 @@ export const demoCafe: CafeProfile = {
   extraShotPrice: 0.75,
   address: "42 Blossom Lane, Corner Bistro Plaza",
   orderingEnabled: true,
+  headerMessages: [
+    "Ask staff about today's specials",
+    "Cash only — pay at the counter with your order # and PIN",
+  ],
+  guestStatusEnabled: false,
+  lastCallEnabled: false,
+  lastCallMessage: "Kitchen is closing — last orders now",
+  lastCallEndsAt: null,
 };
 
 export const demoCategories: MenuCategory[] = [
