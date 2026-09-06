@@ -167,6 +167,7 @@ class PostgresStore {
            AND (tax_name IS NULL OR tax_name = '' OR tax_name = 'Tax')`
       );
       await this.query(`UPDATE cafes SET country = 'NP', tax_name = 'VAT', tax_rate = 0.13 WHERE currency = 'NPR'`);
+      await this.query(`UPDATE cafes SET updated_at = (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint WHERE updated_at IS NULL OR updated_at = 0`);
     } catch (_) {}
 
     // Backfill structured modifiers from legacy flags when empty
