@@ -58,7 +58,7 @@ export const demoItems: MenuItem[] = [
     prepMinutes: 5,
     tags: ["popular", "veg"],
     image:
-      "https://images.unsplash.com/photo-1485808191679-5f86534bd76f?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=900&q=80",
     hasMilk: true,
     hasExtraShot: true,
     available: true,
@@ -128,7 +128,7 @@ export const demoItems: MenuItem[] = [
     prepMinutes: 8,
     tags: ["veg"],
     image:
-      "https://images.unsplash.com/photo-1541519227354-08fa9d52bf53?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
     available: true,
@@ -156,7 +156,7 @@ export const demoItems: MenuItem[] = [
     prepMinutes: 10,
     tags: ["popular"],
     image:
-      "https://images.unsplash.com/photo-1539252554453-80da39721045?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
     available: true,

@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
 import { openExternal } from "@/lib/appRole";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -274,16 +274,25 @@ export function Photo({
   height?: number;
   children?: React.ReactNode;
 }) {
+  const [failed, setFailed] = useState(false);
+  const showImg = !!uri && !failed;
   return (
     <View style={[styles.photo, { height }]}>
-      <Image
-        source={{ uri }}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-        // @ts-expect-error web lazy loading
-        loading="lazy"
-        accessibilityIgnoresInvertColors
-      />
+      {showImg ? (
+        <Image
+          source={{ uri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          // @ts-expect-error web lazy loading
+          loading="lazy"
+          accessibilityIgnoresInvertColors
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.photoFallback]} accessibilityLabel="Image unavailable">
+          <Text style={styles.photoFallbackTxt}>No photo</Text>
+        </View>
+      )}
       {children}
     </View>
   );
@@ -443,6 +452,18 @@ const styles = StyleSheet.create({
   banner: { borderWidth, borderRadius: radius, paddingHorizontal: 14, paddingVertical: 12 },
   bannerTxt: { fontSize: 13, fontWeight: "700", lineHeight: 18 },
   photo: { width: "100%", backgroundColor: colors.wash, overflow: "hidden" },
+  photoFallback: {
+    backgroundColor: colors.wash,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoFallbackTxt: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: colors.muted,
+  },
   stepper: { flexDirection: "row", borderWidth, borderColor: colors.line, borderRadius: radius, overflow: "hidden", alignSelf: "flex-start" },
   stepBtn: {
     width: 44,

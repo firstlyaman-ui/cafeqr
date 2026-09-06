@@ -165,7 +165,7 @@ export default function Owner() {
     return (
       <LoginGate
         role="owner"
-        title="Owner sign in"
+        title="CafeQred owner sign-in"
         onLogin={async (input) => {
           const r = await loginWithCredentials({ role: "owner", ...input });
           if (r.ok) {

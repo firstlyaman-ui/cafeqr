@@ -147,7 +147,7 @@ export default function Staff() {
     return (
       <LoginGate
         role="staff"
-        title="Staff sign in"
+        title="CafeQred staff sign-in"
         onLogin={async (input) => {
           const r = await loginWithCredentials({ role: "staff", ...input });
           if (r.ok) {

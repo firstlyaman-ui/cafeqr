@@ -72,7 +72,7 @@ Guest menus use cafe-specific paths:
 
 | Cafe | Example guest URL |
 |------|-------------------|
-| Velvet Bean (USD · Tax 8%) | `/c/velvet-bean/t/04` |
+| Velvet Bean / NUKKAD (NPR · VAT 13%) | `/c/velvet-bean/t/04` |
 | Spice Lane (INR · GST 5%) | `/c/spice-lane/t/03` |
 | Himalayan Beans (NPR · VAT 13%) | `/c/himalayan-beans/t/04` |
 

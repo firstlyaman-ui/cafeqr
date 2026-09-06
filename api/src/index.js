@@ -1059,7 +1059,7 @@ async function createApp() {
 async function main() {
   const app = await createApp();
   app.listen(PORT, () => {
-    console.log(`CafeQR API listening on http://localhost:${PORT}`);
+    console.log(`CafeQred API listening on http://localhost:${PORT}`);
     console.log(`Health: GET /health · Cafes: GET /cafes · Demo: GET /cafes/velvet-bean`);
   });
 }
