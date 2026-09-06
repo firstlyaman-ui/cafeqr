@@ -2,12 +2,11 @@
 
 export type AppRole = "customer" | "staff" | "owner";
 
-function env(name: string): string | undefined {
-  if (typeof process === "undefined") return undefined;
-  const v = process.env?.[name]?.trim();
-  return v || undefined;
-}
-
+/**
+ * Expo/Metro only inlines *static* `process.env.EXPO_PUBLIC_*` access.
+ * Dynamic `process.env[name]` stays as a runtime lookup and is empty in the
+ * browser — which previously made every role build behave as "customer".
+ */
 function normalizeRole(raw: string | undefined): AppRole {
   const r = (raw || "customer").toLowerCase().replace(/_/g, "-");
   if (r === "staff" || r === "cafeqr-staff") return "staff";
@@ -16,11 +15,24 @@ function normalizeRole(raw: string | undefined): AppRole {
   return "customer";
 }
 
-export const APP_ROLE: AppRole = normalizeRole(env("EXPO_PUBLIC_APP_ROLE"));
+export const APP_ROLE: AppRole = normalizeRole(
+  typeof process !== "undefined" ? process.env.EXPO_PUBLIC_APP_ROLE : undefined,
+);
 
-export const CUSTOMER_URL = (env("EXPO_PUBLIC_CUSTOMER_URL") || "https://cafeqr-five.vercel.app").replace(/\/$/, "");
-export const STAFF_URL = (env("EXPO_PUBLIC_STAFF_URL") || "https://cafeqr-staff.vercel.app").replace(/\/$/, "");
-export const OWNER_URL = (env("EXPO_PUBLIC_OWNER_URL") || "https://cafeqr-owner.vercel.app").replace(/\/$/, "");
+export const CUSTOMER_URL = (
+  (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_CUSTOMER_URL : undefined) ||
+  "https://cafeqr-five.vercel.app"
+).replace(/\/$/, "");
+
+export const STAFF_URL = (
+  (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_STAFF_URL : undefined) ||
+  "https://cafeqr-staff.vercel.app"
+).replace(/\/$/, "");
+
+export const OWNER_URL = (
+  (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_OWNER_URL : undefined) ||
+  "https://cafeqr-owner.vercel.app"
+).replace(/\/$/, "");
 
 export function isCustomerApp() {
   return APP_ROLE === "customer";

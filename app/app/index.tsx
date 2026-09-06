@@ -1,11 +1,12 @@
-import { useFocusEffect } from "expo-router";
+import { Redirect, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Banner, BrandMark, Btn, Kicker, Loading, Screen } from "@/components/ui";
 import {
-  APP_ROLE,
   isCustomerApp,
+  isOwnerApp,
+  isStaffApp,
 } from "@/lib/appRole";
 import { useStore } from "@/lib/store";
 import { colors, shadow } from "@/lib/theme";
@@ -37,17 +38,13 @@ export default function Landing() {
     }, [refreshCafeList]),
   );
 
-  if (!ready) return <Loading />;
+  // Staff/owner: never render customer demo landing (OPEN TABLE 4 / DEMO CAFÉS).
+  // APP_ROLE is baked at build time; Redirect avoids a customer-UI flash on /.
+  if (isStaffApp()) return <Redirect href={"/staff" as any} />;
+  if (isOwnerApp()) return <Redirect href={"/owner" as any} />;
 
-  // Staff/owner builds redirect via RoleGuard; keep a tiny fallback.
-  if (!isCustomerApp()) {
-    return (
-      <Screen maxWidth={560}>
-        <Text style={styles.headline}>{APP_ROLE} app</Text>
-        <Text style={styles.lede}>Loading…</Text>
-      </Screen>
-    );
-  }
+  if (!ready) return <Loading />;
+  if (!isCustomerApp()) return null;
 
   const demo = cafeList.find((c) => c.slug === "velvet-bean") || cafeList[0];
   const demoHref = (`/c/${demo?.slug || "velvet-bean"}/t/04`) as any;

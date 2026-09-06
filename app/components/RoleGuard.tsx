@@ -1,5 +1,4 @@
-import { router, usePathname, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { Redirect, usePathname, useSegments } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
 import {
@@ -22,16 +21,12 @@ export function RoleGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const segments = useSegments();
 
-  useEffect(() => {
-    if (APP_ROLE === "staff" && (pathname === "/" || pathname === "")) {
-      router.replace("/staff" as any);
-      return;
-    }
-    if (APP_ROLE === "owner" && (pathname === "/" || pathname === "")) {
-      router.replace("/owner" as any);
-      return;
-    }
-  }, [pathname]);
+  if (APP_ROLE === "staff" && (pathname === "/" || pathname === "")) {
+    return <Redirect href={"/staff" as any} />;
+  }
+  if (APP_ROLE === "owner" && (pathname === "/" || pathname === "")) {
+    return <Redirect href={"/owner" as any} />;
+  }
 
   const path = pathname || "/" + (segments || []).join("/");
   const allowed = pathAllowedForRole(path);

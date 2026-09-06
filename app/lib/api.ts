@@ -4,7 +4,7 @@ const PROD_DEFAULT = "https://cafeqr-api.vercel.app";
 
 function resolveApiBase(): string {
   const fromEnv =
-    typeof process !== "undefined" ? process.env?.EXPO_PUBLIC_API_URL?.trim() : undefined;
+    typeof process !== "undefined" ? process.env.EXPO_PUBLIC_API_URL?.trim() : undefined;
   if (fromEnv) return fromEnv.replace(/\/$/, "");
   // Expo production / static export: never bake localhost
   if (typeof __DEV__ !== "undefined" && __DEV__) return DEV_DEFAULT;
