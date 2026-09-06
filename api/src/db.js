@@ -149,6 +149,10 @@ CREATE TABLE IF NOT EXISTS cafes (
   extra_shot_price REAL,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
+  owner_user TEXT DEFAULT '',
+  owner_password TEXT DEFAULT '',
+  staff_user TEXT DEFAULT '',
+  staff_password TEXT DEFAULT '',
   ordering_enabled INTEGER DEFAULT 1,
   updated_at INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
@@ -242,6 +246,30 @@ function migrate(adapter) {
       adapter.exec("UPDATE cafes SET updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE updated_at IS NULL OR updated_at = 0");
     } catch (_) {}
   }
+
+  for (const col of ["owner_user", "owner_password", "staff_user", "staff_password"]) {
+    if (cafeCols.length && !cafeCols.includes(col)) {
+      adapter.exec(`ALTER TABLE cafes ADD COLUMN ${col} TEXT DEFAULT ''`);
+    }
+  }
+  try {
+    const { defaultCredsForSlug } = require("./auth");
+    const rows = adapter.prepare("SELECT id, slug, owner_user, staff_user, owner_password, staff_password FROM cafes").all();
+    for (const c of rows) {
+      if (c.owner_user && c.staff_user && c.owner_password && c.staff_password) continue;
+      const creds = defaultCredsForSlug(c.slug);
+      adapter
+        .prepare(
+          `UPDATE cafes SET
+            owner_user = CASE WHEN owner_user IS NULL OR owner_user = '' THEN ? ELSE owner_user END,
+            staff_user = CASE WHEN staff_user IS NULL OR staff_user = '' THEN ? ELSE staff_user END,
+            owner_password = CASE WHEN owner_password IS NULL OR owner_password = '' THEN ? ELSE owner_password END,
+            staff_password = CASE WHEN staff_password IS NULL OR staff_password = '' THEN ? ELSE staff_password END
+           WHERE id = ?`
+        )
+        .run(creds.owner_user, creds.staff_user, creds.owner_password, creds.staff_password, c.id);
+    }
+  } catch (_) {}
 
   const itemCols = columnNames(adapter, "items");
   if (itemCols.length && !itemCols.includes("available")) {

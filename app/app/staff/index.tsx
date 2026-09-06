@@ -2,7 +2,7 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { PinGate } from "@/components/PinGate";
+import { LoginGate } from "@/components/LoginGate";
 import { openExternal, ownerSetupUrl } from "@/lib/appRole";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
@@ -10,7 +10,7 @@ import { diningLabel } from "@/lib/share";
 import { useStore } from "@/lib/store";
 import { hapticMedium, hapticSuccess } from "@/lib/haptics";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
-import { STAFF_PIN, type Order, type OrderStatus } from "@/lib/types";
+import type { Order, OrderStatus } from "@/lib/types";
 
 const FILTERS: (OrderStatus | "all")[] = ["all", "new", "preparing", "ready", "paid", "cancelled"];
 const OPEN: OrderStatus[] = ["new", "preparing", "ready"];
@@ -94,7 +94,7 @@ export default function Staff() {
     loadCafe,
     refreshOrders,
     refreshCafeList,
-    verifyStaffPin,
+    loginWithCredentials,
   } = useStore();
   const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [picked, setPicked] = useState(String(params.slug || cafeSlug || "velvet-bean"));
@@ -135,14 +135,16 @@ export default function Staff() {
   if (!ready) return <Loading />;
   if (!staffOk) {
     return (
-      <PinGate
-        title="Staff board"
-        hint={cafe.name || "Pass & tickets"}
-        pin={STAFF_PIN}
-        onCheck={(p) => verifyStaffPin(p)}
-        onOk={() => {
-          void hapticSuccess();
-          setStaffOk(true);
+      <LoginGate
+        role="staff"
+        title="Staff sign in"
+        onLogin={async (input) => {
+          const r = await loginWithCredentials({ role: "staff", ...input });
+          if (r.ok) {
+            setPicked(r.slug);
+            void hapticSuccess();
+          }
+          return r;
         }}
       />
     );
@@ -161,6 +163,7 @@ export default function Staff() {
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
           <Btn label="QR sheet" href="/staff/qr" variant="gold" />
           <Btn label="Owner" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
+          <Btn label="Sign out" onPress={() => setStaffOk(false)} variant="outline" />
         </View>
       </View>
 

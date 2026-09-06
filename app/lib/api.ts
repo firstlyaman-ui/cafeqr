@@ -206,6 +206,30 @@ export function verifyStaff(slug: string, pin: string) {
   });
 }
 
+export function loginCafe(body: { role: "owner" | "staff"; userId: string; password: string; pin: string }) {
+  return req<{ ok: boolean; role: string; slug: string; cafeName: string; userId: string }>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getCredentials(slug: string, ownerPin: string) {
+  return req<{ ownerUser: string; staffUser: string }>(`/cafes/${encodeURIComponent(slug)}/credentials`, {
+    ownerPin,
+  });
+}
+
+export function saveCredentials(slug: string, body: Record<string, unknown>, ownerPin: string) {
+  return req<{ ok: boolean; ownerUser: string; staffUser: string }>(
+    `/cafes/${encodeURIComponent(slug)}/credentials`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+      ownerPin,
+    },
+  );
+}
+
 export function postCategory(slug: string, name: string, ownerPin: string) {
   return req(`/cafes/${encodeURIComponent(slug)}/categories`, {
     method: "POST",

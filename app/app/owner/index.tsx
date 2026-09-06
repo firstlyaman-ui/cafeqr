@@ -2,7 +2,7 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { PinGate } from "@/components/PinGate";
+import { LoginGate } from "@/components/LoginGate";
 import { QrImage, printQrSheet } from "@/components/QrImage";
 import { Banner, Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/ui";
 import { tableUrlFor } from "@/lib/api";
@@ -11,7 +11,7 @@ import { hapticError, hapticSuccess } from "@/lib/haptics";
 import { customerTableUrl, openExternal, staffBoardUrl } from "@/lib/appRole";
 import { emptyItem, useStore } from "@/lib/store";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
-import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem, type ModifierGroup } from "@/lib/types";
+import { COUNTRY_TAX_DEFAULTS, type CountryCode, type DietaryTag, type MenuItem, type ModifierGroup } from "@/lib/types";
 import {
   defaultExtraShotGroup,
   defaultMilkGroup,
@@ -65,7 +65,9 @@ export default function Owner() {
     restoreDemo,
     loadCafe,
     refreshCafeList,
-    verifyOwnerPin,
+    loginWithCredentials,
+    saveCafeCredentials,
+    loadCafeCredentials,
   } = store;
 
   const [picked, setPicked] = useState(String(params.slug || cafeSlug || "velvet-bean"));
@@ -86,6 +88,12 @@ export default function Owner() {
   const [catName, setCatName] = useState("");
   const [editing, setEditing] = useState<Draft | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err" | "info"; text: string } | null>(null);
+  const [credOwnerUser, setCredOwnerUser] = useState("");
+  const [credStaffUser, setCredStaffUser] = useState("");
+  const [credOwnerPass, setCredOwnerPass] = useState("");
+  const [credStaffPass, setCredStaffPass] = useState("");
+  const [credOwnerPin, setCredOwnerPin] = useState("");
+  const [credStaffPin, setCredStaffPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [catDrafts, setCatDrafts] = useState<Record<string, string>>({});
@@ -146,17 +154,19 @@ export default function Owner() {
   if (!ready) return <Loading />;
   if (!ownerOk) {
     return (
-      <PinGate
-        title="Owner setup"
-        hint={cafe.name || "Café console"}
-        pin={OWNER_PIN}
-        onCheck={async (p) => {
-          const ok = await verifyOwnerPin(p);
-          if (ok) void hapticSuccess();
-          else void hapticError();
-          return ok;
+      <LoginGate
+        role="owner"
+        title="Owner sign in"
+        onLogin={async (input) => {
+          const r = await loginWithCredentials({ role: "owner", ...input });
+          if (r.ok) {
+            setPicked(r.slug);
+            void hapticSuccess();
+          } else {
+            void hapticError();
+          }
+          return r;
         }}
-        onOk={() => setOwnerOk(true)}
       />
     );
   }
@@ -323,6 +333,7 @@ export default function Owner() {
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             <Btn label="Open guest menu" onPress={() => openExternal(customerTableUrl(slug, "04"))} variant="outline" />
             <Btn label="Staff app" onPress={() => openExternal(staffBoardUrl(slug))} variant="gold" />
+            <Btn label="Sign out" onPress={() => setOwnerOk(false)} variant="outline" />
           </View>
         </View>
 
@@ -823,6 +834,48 @@ export default function Owner() {
             ) : null}
           </View>
         ) : null}
+
+
+        <Text style={styles.section}>Login credentials</Text>
+        <Text style={{ color: colors.muted, marginBottom: 8 }}>
+          Change Cafe User ID, password, and PIN. User IDs must be unique across cafés.
+        </Text>
+        <Field label="Owner user id" value={credOwnerUser} onChangeText={setCredOwnerUser} />
+        <Field label="Owner new password (blank = keep)" value={credOwnerPass} onChangeText={setCredOwnerPass} secureTextEntry />
+        <Field label="Owner new PIN (blank = keep)" value={credOwnerPin} onChangeText={setCredOwnerPin} keyboardType="number-pad" />
+        <Field label="Staff user id" value={credStaffUser} onChangeText={setCredStaffUser} />
+        <Field label="Staff new password (blank = keep)" value={credStaffPass} onChangeText={setCredStaffPass} secureTextEntry />
+        <Field label="Staff new PIN (blank = keep)" value={credStaffPin} onChangeText={setCredStaffPin} keyboardType="number-pad" />
+        <Btn
+          label={busy ? "Saving…" : "Save credentials"}
+          disabled={busy}
+          onPress={() => {
+            void (async () => {
+              setBusy(true);
+              try {
+                const body: Record<string, string> = {};
+                if (credOwnerUser.trim()) body.ownerUser = credOwnerUser.trim();
+                if (credStaffUser.trim()) body.staffUser = credStaffUser.trim();
+                if (credOwnerPass) body.ownerPassword = credOwnerPass;
+                if (credStaffPass) body.staffPassword = credStaffPass;
+                if (credOwnerPin.trim()) body.ownerPin = credOwnerPin.trim();
+                if (credStaffPin.trim()) body.staffPin = credStaffPin.trim();
+                const r = await saveCafeCredentials(body);
+                if (r.ok) {
+                  setCredOwnerUser(r.ownerUser);
+                  setCredStaffUser(r.staffUser);
+                  setCredOwnerPass("");
+                  setCredStaffPass("");
+                  setCredOwnerPin("");
+                  setCredStaffPin("");
+                  flashMsg("ok", "Credentials updated");
+                } else flashMsg("err", r.error);
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        />
 
         <View style={styles.rowBetween}>
           <Text style={styles.section}>Printable QR sheet</Text>

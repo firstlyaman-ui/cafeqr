@@ -27,11 +27,58 @@ class SqliteStore {
     return this.db.prepare("SELECT * FROM cafes WHERE slug = ?").get(slug) || null;
   }
 
+  async getCafeByLoginUser(userId, role) {
+    const u = String(userId || "").trim();
+    if (!u) return null;
+    if (role === "owner") {
+      return this.db.prepare("SELECT * FROM cafes WHERE lower(owner_user) = lower(?)").get(u) || null;
+    }
+    return this.db.prepare("SELECT * FROM cafes WHERE lower(staff_user) = lower(?)").get(u) || null;
+  }
+
+  async findCafeUsingUserId(userId, excludeCafeId = null) {
+    const u = String(userId || "").trim();
+    if (!u) return null;
+    const row = this.db
+      .prepare(
+        `SELECT * FROM cafes WHERE (lower(owner_user) = lower(?) OR lower(staff_user) = lower(?))
+         AND (? IS NULL OR id <> ?) LIMIT 1`
+      )
+      .get(u, u, excludeCafeId, excludeCafeId);
+    return row || null;
+  }
+
+  async updateCafeCredentials(id, fields) {
+    this.db
+      .prepare(
+        `UPDATE cafes SET
+          owner_user = COALESCE(?, owner_user),
+          owner_password = COALESCE(?, owner_password),
+          owner_pin = COALESCE(?, owner_pin),
+          staff_user = COALESCE(?, staff_user),
+          staff_password = COALESCE(?, staff_password),
+          staff_pin = COALESCE(?, staff_pin),
+          updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        fields.owner_user ?? null,
+        fields.owner_password ?? null,
+        fields.owner_pin ?? null,
+        fields.staff_user ?? null,
+        fields.staff_password ?? null,
+        fields.staff_pin ?? null,
+        Date.now(),
+        id
+      );
+    return this.db.prepare("SELECT * FROM cafes WHERE id = ?").get(id);
+  }
+
   async createCafe(row) {
     this.db
       .prepare(
-        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.slug,
@@ -50,6 +97,10 @@ class SqliteStore {
         row.extra_shot_price ?? null,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
+        row.owner_user ?? "",
+        row.owner_password ?? "",
+        row.staff_user ?? "",
+        row.staff_password ?? "",
         row.ordering_enabled ?? 1,
         row.updated_at ?? Date.now()
       );

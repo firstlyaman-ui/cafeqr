@@ -214,6 +214,9 @@ interface Store extends Persist {
   cancelGuestOrder: (id: string, confirm?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   verifyOwnerPin: (pin: string) => Promise<boolean>;
   verifyStaffPin: (pin: string) => Promise<boolean>;
+  loginWithCredentials: (input: { role: "owner" | "staff"; userId: string; password: string; pin: string }) => Promise<{ ok: true; slug: string; cafeName: string } | { ok: false; error: string }>;
+  saveCafeCredentials: (body: Record<string, unknown>) => Promise<{ ok: true; ownerUser: string; staffUser: string } | { ok: false; error: string }>;
+  loadCafeCredentials: () => Promise<{ ownerUser: string; staffUser: string } | null>;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -937,6 +940,68 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return pin === STAFF_PIN;
   }, []);
 
+  const loginWithCredentials = useCallback(
+    async (input: { role: "owner" | "staff"; userId: string; password: string; pin: string }) => {
+      try {
+        if (!apiOnlineRef.current) {
+          // Offline demo: cafe1/2/3 + pass + 1234 map to seeded slugs
+          const map: Record<string, string> = {
+            cafe1: "velvet-bean",
+            cafe2: "spice-lane",
+            cafe3: "himalayan-beans",
+          };
+          const slug = map[input.userId.trim().toLowerCase()];
+          if (!slug || input.password !== "pass" || input.pin !== "1234") {
+            return { ok: false as const, error: "Invalid login (offline demo needs cafe1–3 / pass / 1234)" };
+          }
+          await loadCafe(slug);
+          if (input.role === "owner") {
+            setOwnerPin(input.pin);
+            setOwnerOk(true);
+          } else {
+            setStaffPin(input.pin);
+            setStaffOk(true);
+          }
+          return { ok: true as const, slug, cafeName: slug };
+        }
+        const r = await api.loginCafe(input);
+        if (!r.ok) return { ok: false as const, error: "Invalid login" };
+        await loadCafe(r.slug);
+        if (input.role === "owner") {
+          setOwnerPin(input.pin);
+          setOwnerOk(true);
+        } else {
+          setStaffPin(input.pin);
+          setStaffOk(true);
+        }
+        return { ok: true as const, slug: r.slug, cafeName: r.cafeName };
+      } catch (e: any) {
+        return { ok: false as const, error: errMsg(e, "Login failed") };
+      }
+    },
+    [loadCafe, setOwnerOk, setStaffOk, setOwnerPin, setStaffPin],
+  );
+
+  const saveCafeCredentials = useCallback(
+    async (body: Record<string, unknown>) => {
+      try {
+        const r = await api.saveCredentials(stateRef.current.cafeSlug, body, ownerPinRef.current);
+        return { ok: true as const, ownerUser: r.ownerUser, staffUser: r.staffUser };
+      } catch (e: any) {
+        return { ok: false as const, error: errMsg(e, "Could not save credentials") };
+      }
+    },
+    [],
+  );
+
+  const loadCafeCredentials = useCallback(async () => {
+    try {
+      return await api.getCredentials(stateRef.current.cafeSlug, ownerPinRef.current);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const value = useMemo<Store>(
     () => ({
       ...state,
@@ -974,6 +1039,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cancelGuestOrder,
       verifyOwnerPin,
       verifyStaffPin,
+      loginWithCredentials,
+      saveCafeCredentials,
+      loadCafeCredentials,
     }),
     [
       state,
@@ -1007,6 +1075,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cancelGuestOrder,
       verifyOwnerPin,
       verifyStaffPin,
+      loginWithCredentials,
+      saveCafeCredentials,
+      loadCafeCredentials,
     ],
   );
 

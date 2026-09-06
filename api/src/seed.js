@@ -1,6 +1,7 @@
 const { getStore } = require("./store");
 const { velvetBean, spiceLane, himalayanBeans } = require("./seed-data");
 const { defaultSurcharges } = require("./pricing");
+const { defaultCredsForSlug } = require("./auth");
 
 async function insertCafe(store, cafe) {
   const existing = await store.getCafeBySlug(cafe.slug);
@@ -31,6 +32,15 @@ async function insertCafe(store, cafe) {
     extra_shot_price: cafe.extra_shot_price ?? sur.extraShot,
     owner_pin: demoOwner,
     staff_pin: demoStaff,
+    ...(() => {
+      const creds = defaultCredsForSlug(cafe.slug);
+      return {
+        owner_user: cafe.owner_user || creds.owner_user,
+        owner_password: cafe.owner_password || creds.owner_password,
+        staff_user: cafe.staff_user || creds.staff_user,
+        staff_password: cafe.staff_password || creds.staff_password,
+      };
+    })(),
     ordering_enabled: cafe.ordering_enabled === 0 ? 0 : 1,
   });
   const cafeId = created.id;

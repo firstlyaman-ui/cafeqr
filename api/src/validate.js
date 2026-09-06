@@ -144,6 +144,28 @@ const pinBodySchema = z.object({
   pin: z.string().min(1),
 });
 
+const loginSchema = z.object({
+  role: z.enum(["owner", "staff"]),
+  userId: z.string().min(1).max(64),
+  password: z.string().min(1).max(128),
+  pin: z.string().min(4).max(12),
+});
+
+const credentialsSchema = z.object({
+  ownerUser: z.string().min(1).max(64).optional(),
+  owner_user: z.string().min(1).max(64).optional(),
+  ownerPassword: z.string().min(1).max(128).optional(),
+  owner_password: z.string().min(1).max(128).optional(),
+  ownerPin: z.string().min(4).max(12).optional(),
+  owner_pin: z.string().min(4).max(12).optional(),
+  staffUser: z.string().min(1).max(64).optional(),
+  staff_user: z.string().min(1).max(64).optional(),
+  staffPassword: z.string().min(1).max(128).optional(),
+  staff_password: z.string().min(1).max(128).optional(),
+  staffPin: z.string().min(4).max(12).optional(),
+  staff_pin: z.string().min(4).max(12).optional(),
+});
+
 module.exports = {
   createCafeSchema,
   patchCafeSchema,
@@ -152,4 +174,6 @@ module.exports = {
   placeOrderSchema,
   patchOrderSchema,
   pinBodySchema,
+  loginSchema,
+  credentialsSchema,
 };

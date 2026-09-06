@@ -211,3 +211,22 @@ describe("mapOrder", () => {
     assert.equal(mapOrder(null), null);
   });
 });
+
+
+describe("auth credentials", () => {
+  const { hashPassword, verifyPassword, defaultCredsForSlug, DEMO_USERS } = require("../src/auth");
+
+  it("hashes and verifies passwords", () => {
+    const h = hashPassword("pass");
+    assert.equal(verifyPassword("pass", h), true);
+    assert.equal(verifyPassword("nope", h), false);
+  });
+
+  it("maps seeded cafes to cafe1/2/3", () => {
+    assert.equal(DEMO_USERS["velvet-bean"], "cafe1");
+    assert.equal(DEMO_USERS["spice-lane"], "cafe2");
+    assert.equal(DEMO_USERS["himalayan-beans"], "cafe3");
+    assert.equal(defaultCredsForSlug("velvet-bean").owner_user, "cafe1");
+    assert.equal(defaultCredsForSlug("spice-lane").staff_user, "cafe2");
+  });
+});

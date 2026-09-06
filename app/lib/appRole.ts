@@ -9,8 +9,10 @@ function env(name: string): string | undefined {
 }
 
 function normalizeRole(raw: string | undefined): AppRole {
-  const r = (raw || "customer").toLowerCase();
-  if (r === "staff" || r === "owner" || r === "customer") return r;
+  const r = (raw || "customer").toLowerCase().replace(/_/g, "-");
+  if (r === "staff" || r === "cafeqr-staff") return "staff";
+  if (r === "owner" || r === "cafeqr-owner") return "owner";
+  if (r === "customer" || r === "cafeqr" || r === "guest") return "customer";
   return "customer";
 }
 

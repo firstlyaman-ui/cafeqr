@@ -11,8 +11,11 @@ const {
   placeOrderSchema,
   patchOrderSchema,
   pinBodySchema,
+  loginSchema,
+  credentialsSchema,
 } = require("./validate");
 const { safeEqualStr, validateNewPin, createRateLimiter } = require("./security");
+const { hashPassword, verifyPassword, defaultCredsForSlug } = require("./auth");
 const {
   defaultSurcharges,
   cafeAltMilkPrice,
@@ -407,6 +410,17 @@ async function createApp() {
         extra_shot_price: Number.isFinite(extraShot) && extraShot >= 0 ? extraShot : sur.extraShot,
         owner_pin: ownerPin,
         staff_pin: staffPin,
+        ...(() => {
+          const creds = defaultCredsForSlug(slug);
+          const ou = String(body.ownerUser || body.owner_user || creds.owner_user).trim();
+          const su = String(body.staffUser || body.staff_user || creds.staff_user).trim();
+          return {
+            owner_user: ou,
+            owner_password: hashPassword(body.ownerPassword || body.owner_password || "pass"),
+            staff_user: su,
+            staff_password: hashPassword(body.staffPassword || body.staff_password || "pass"),
+          };
+        })(),
         ordering_enabled: body.orderingEnabled === false || body.ordering_enabled === 0 ? 0 : 1,
       });
       await store.createCategory({ id: nid("cat"), cafe_id: cafe.id, name: "Menu", sort: 1 });
@@ -531,6 +545,95 @@ async function createApp() {
       const parsed = pinBodySchema.safeParse(req.body || {});
       if (!parsed.success) return fromZod(res, parsed.error);
       res.json({ ok: safeEqualStr(parsed.data.pin, cafe.staff_pin) });
+    })
+  );
+
+  /** Login by unique cafe userid + password + pin. Resolves cafe slug for the role. */
+  app.post(
+    "/auth/login",
+    (req, res, next) => rateLimitPin(req, res, next, { keyExtra: "login" }),
+    wrap(async (req, res) => {
+      const parsed = loginSchema.safeParse(req.body || {});
+      if (!parsed.success) return fromZod(res, parsed.error);
+      const { role, userId, password, pin } = parsed.data;
+      const cafe = await store.getCafeByLoginUser(userId, role);
+      if (!cafe) return sendError(res, 401, "INVALID_LOGIN", "Unknown cafe user id");
+      const passOk =
+        role === "owner"
+          ? verifyPassword(password, cafe.owner_password)
+          : verifyPassword(password, cafe.staff_password);
+      const pinOk =
+        role === "owner"
+          ? safeEqualStr(pin, cafe.owner_pin)
+          : safeEqualStr(pin, cafe.staff_pin);
+      if (!passOk || !pinOk) return sendError(res, 401, "INVALID_LOGIN", "Invalid password or PIN");
+      res.json({
+        ok: true,
+        role,
+        slug: cafe.slug,
+        cafeName: cafe.name,
+        userId: role === "owner" ? cafe.owner_user : cafe.staff_user,
+      });
+    })
+  );
+
+  /** Owner updates cafe credentials (userid/password/PIN for owner and/or staff). */
+  app.post(
+    "/cafes/:slug/credentials",
+    wrap(async (req, res) => {
+      const cafe = await requireOwner(store, req, res, req.params.slug);
+      if (!cafe) return;
+      const parsed = credentialsSchema.safeParse(req.body || {});
+      if (!parsed.success) return fromZod(res, parsed.error);
+      const b = parsed.data;
+      const ownerUser = (b.ownerUser || b.owner_user || "").trim();
+      const staffUser = (b.staffUser || b.staff_user || "").trim();
+      const ownerPassword = b.ownerPassword || b.owner_password;
+      const staffPassword = b.staffPassword || b.staff_password;
+      const ownerPin = b.ownerPin || b.owner_pin;
+      const staffPin = b.staffPin || b.staff_pin;
+
+      if (ownerUser) {
+        const clash = await store.findCafeUsingUserId(ownerUser, cafe.id);
+        if (clash) return sendError(res, 409, "USER_TAKEN", "Owner user id already in use");
+      }
+      if (staffUser) {
+        const clash = await store.findCafeUsingUserId(staffUser, cafe.id);
+        if (clash) return sendError(res, 409, "USER_TAKEN", "Staff user id already in use");
+      }
+      if (ownerPin && String(ownerPin).length < 4) {
+        return sendError(res, 400, "WEAK_PIN", "ownerPin must be at least 4 digits");
+      }
+      if (staffPin && String(staffPin).length < 4) {
+        return sendError(res, 400, "WEAK_PIN", "staffPin must be at least 4 digits");
+      }
+
+      const updated = await store.updateCafeCredentials(cafe.id, {
+        owner_user: ownerUser || null,
+        owner_password: ownerPassword ? hashPassword(ownerPassword) : null,
+        owner_pin: ownerPin || null,
+        staff_user: staffUser || null,
+        staff_password: staffPassword ? hashPassword(staffPassword) : null,
+        staff_pin: staffPin || null,
+      });
+      res.json({
+        ok: true,
+        ownerUser: updated.owner_user,
+        staffUser: updated.staff_user,
+      });
+    })
+  );
+
+  app.get(
+    "/cafes/:slug/credentials",
+    wrap(async (req, res) => {
+      const cafe = await requireOwner(store, req, res, req.params.slug);
+      if (!cafe) return;
+      res.json({
+        ownerUser: cafe.owner_user || "",
+        staffUser: cafe.staff_user || "",
+        // never return password hashes
+      });
     })
   );
 

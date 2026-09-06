@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS cafes (
   extra_shot_price DOUBLE PRECISION,
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
+  owner_user TEXT DEFAULT '',
+  owner_password TEXT DEFAULT '',
+  staff_user TEXT DEFAULT '',
+  staff_password TEXT DEFAULT '',
   ordering_enabled INTEGER DEFAULT 1,
   updated_at BIGINT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -154,6 +158,10 @@ class PostgresStore {
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirm_code TEXT DEFAULT ''`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS dining_option TEXT DEFAULT 'dine_in'`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_name TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS owner_user TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS owner_password TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS staff_user TEXT DEFAULT ''`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS staff_password TEXT DEFAULT ''`,
     ];
     for (const sql of alters) {
       try {
@@ -186,6 +194,34 @@ class PostgresStore {
         }
       }
     } catch (_) {}
+
+    // Backfill demo login credentials (cafe1/cafe2/cafe3 · pass · 1234)
+    try {
+      const { defaultCredsForSlug, demoUserForSlug, hashPassword, DEMO_PASS } = require("../auth");
+      const cafes = (await this.query("SELECT id, slug, owner_user, staff_user, owner_password, staff_password FROM cafes")).rows;
+      for (const c of cafes) {
+        const need =
+          !c.owner_user || !c.staff_user || !c.owner_password || !c.staff_password;
+        if (!need) continue;
+        const creds = defaultCredsForSlug(c.slug);
+        await this.query(
+          `UPDATE cafes SET
+            owner_user = CASE WHEN owner_user IS NULL OR owner_user = '' THEN $1 ELSE owner_user END,
+            staff_user = CASE WHEN staff_user IS NULL OR staff_user = '' THEN $2 ELSE staff_user END,
+            owner_password = CASE WHEN owner_password IS NULL OR owner_password = '' THEN $3 ELSE owner_password END,
+            staff_password = CASE WHEN staff_password IS NULL OR staff_password = '' THEN $4 ELSE staff_password END
+           WHERE id = $5`,
+          [creds.owner_user, creds.staff_user, creds.owner_password, creds.staff_password, c.id]
+        );
+      }
+      // Unique indexes (ignore if duplicates exist)
+      try {
+        await this.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cafes_owner_user ON cafes (owner_user) WHERE owner_user <> ''`);
+        await this.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cafes_staff_user ON cafes (staff_user) WHERE staff_user <> ''`);
+      } catch (_) {}
+    } catch (e) {
+      console.warn("[db] credential backfill skipped", e && e.message);
+    }
   }
 
   async listCafes() {
@@ -200,10 +236,58 @@ class PostgresStore {
     return normalizeCafe(rows[0] || null);
   }
 
+  async getCafeByLoginUser(userId, role) {
+    const u = String(userId || "").trim();
+    if (!u) return null;
+    if (role === "owner") {
+      const { rows } = await this.query("SELECT * FROM cafes WHERE lower(owner_user) = lower($1)", [u]);
+      return normalizeCafe(rows[0] || null);
+    }
+    const { rows } = await this.query("SELECT * FROM cafes WHERE lower(staff_user) = lower($1)", [u]);
+    return normalizeCafe(rows[0] || null);
+  }
+
+  async findCafeUsingUserId(userId, excludeCafeId = null) {
+    const u = String(userId || "").trim();
+    if (!u) return null;
+    const { rows } = await this.query(
+      `SELECT * FROM cafes WHERE (lower(owner_user) = lower($1) OR lower(staff_user) = lower($1))
+       AND ($2::int IS NULL OR id <> $2) LIMIT 1`,
+      [u, excludeCafeId]
+    );
+    return normalizeCafe(rows[0] || null);
+  }
+
+  async updateCafeCredentials(id, fields) {
+    await this.query(
+      `UPDATE cafes SET
+        owner_user = COALESCE($1, owner_user),
+        owner_password = COALESCE($2, owner_password),
+        owner_pin = COALESCE($3, owner_pin),
+        staff_user = COALESCE($4, staff_user),
+        staff_password = COALESCE($5, staff_password),
+        staff_pin = COALESCE($6, staff_pin),
+        updated_at = $7
+       WHERE id = $8`,
+      [
+        fields.owner_user ?? null,
+        fields.owner_password ?? null,
+        fields.owner_pin ?? null,
+        fields.staff_user ?? null,
+        fields.staff_password ?? null,
+        fields.staff_pin ?? null,
+        Date.now(),
+        id,
+      ]
+    );
+    const { rows } = await this.query("SELECT * FROM cafes WHERE id = $1", [id]);
+    return normalizeCafe(rows[0]);
+  }
+
   async createCafe(row) {
     await this.query(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, owner_user, owner_password, staff_user, staff_password, ordering_enabled, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [
         row.slug,
         row.name,
@@ -221,6 +305,10 @@ class PostgresStore {
         row.extra_shot_price ?? null,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
+        row.owner_user ?? "",
+        row.owner_password ?? "",
+        row.staff_user ?? "",
+        row.staff_password ?? "",
         row.ordering_enabled ?? 1,
         row.updated_at ?? Date.now(),
       ]

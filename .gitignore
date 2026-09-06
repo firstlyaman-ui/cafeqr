@@ -33,3 +33,5 @@ yarn-error.*
 
 api/.agents/
 api/skills-lock.json
+.vercel
+.env*
