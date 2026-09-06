@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { confirmOnce } from "@/lib/confirm";
 import { LoginGate } from "@/components/LoginGate";
 import { openExternal, ownerSetupUrl } from "@/lib/appRole";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
@@ -27,7 +28,8 @@ function Ticket({
   onReject: (id: string) => void;
 }) {
   const nxt = nextStatus(order.status);
-  const due = order.status !== "paid";
+  // Cash-first: only `new` still awaits cash; preparing/ready already approved.
+  const due = order.status === "new";
   const primary = nextStatusLabel(order.status, order.confirmCode);
   return (
     <View style={styles.ticket}>
@@ -51,17 +53,19 @@ function Ticket({
       ))}
       {order.notes ? <Text style={styles.notes}>Note: {order.notes}</Text> : null}
       <View style={styles.dueRow}>
-        <Text style={styles.dueLbl}>{due ? "CASH DUE" : "PAID"}</Text>
+        <Text style={styles.dueLbl}>{due ? "CASH DUE" : order.status === "cancelled" ? "CANCELLED" : "CASH TAKEN"}</Text>
         <Text style={styles.dueAmt}>{money(order.total, currency)}</Text>
       </View>
       {nxt ? (
         <Btn
           label={primary || "Advance"}
           onPress={() => {
-            void hapticMedium();
-            onAdvance(order.id, nxt);
+            confirmOnce(primary || "Confirm", "Are you sure?", () => {
+              void hapticMedium();
+              onAdvance(order.id, nxt);
+            });
           }}
-          variant={order.status === "ready" ? "gold" : "dark"}
+          variant={order.status === "new" ? "gold" : "dark"}
         />
       ) : null}
       {OPEN.includes(order.status) ? (
@@ -69,8 +73,10 @@ function Ticket({
           label="Cancel"
           variant="outline"
           onPress={() => {
-            void hapticMedium();
-            onReject(order.id);
+            confirmOnce("Cancel order", "Are you sure?", () => {
+              void hapticMedium();
+              onReject(order.id);
+            });
           }}
         />
       ) : null}
@@ -129,7 +135,7 @@ export default function Staff() {
   }, [orders, filter]);
 
   const cur = cafe.currency || "USD";
-  const due = orders.filter((o) => o.status !== "paid" && o.status !== "cancelled").reduce((n, o) => n + o.total, 0);
+  const due = orders.filter((o) => o.status === "new").reduce((n, o) => n + o.total, 0);
   const slug = cafe.slug || cafeSlug || picked;
 
   if (!ready) return <Loading />;
@@ -190,7 +196,7 @@ export default function Staff() {
 
       <View style={styles.board}>
         {(["new", "preparing", "ready", "paid", "cancelled"] as OrderStatus[])
-          .filter((col) => (filter === "all" ? col !== "cancelled" : filter === col))
+          .filter((col) => (filter === "all" ? col !== "cancelled" && col !== "paid" : filter === col))
           .map((col) => {
             const colOrders = orders.filter((o) => o.status === col);
             return (

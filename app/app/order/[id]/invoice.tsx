@@ -128,7 +128,7 @@ export default function OrderInvoice() {
           <Text style={styles.dueLbl}>{order.payCash ? "CASH DUE" : "AMOUNT DUE"}</Text>
           <Text style={styles.dueAmt}>{money(order.total, cur)}</Text>
         </View>
-        <Text style={styles.foot}>Thank you · pay at the counter when you collect</Text>
+        <Text style={styles.foot}>Thank you · cash at the counter to start your order</Text>
       </View>
     </Screen>
   );

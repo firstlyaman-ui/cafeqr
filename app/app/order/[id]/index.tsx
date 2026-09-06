@@ -2,6 +2,8 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { confirmOnce } from "@/lib/confirm";
+
 import { Btn, Loading, Screen } from "@/components/ui";
 import { isGstSplit, money, statusLabel, tableLabel, taxLabel, waitCopy } from "@/lib/format";
 import { hapticMedium } from "@/lib/haptics";
@@ -10,7 +12,7 @@ import { useStore } from "@/lib/store";
 import { colors, radius } from "@/lib/theme";
 import type { OrderStatus } from "@/lib/types";
 
-const STEPS: OrderStatus[] = ["new", "preparing", "ready", "paid"];
+const STEPS: OrderStatus[] = ["new", "preparing", "ready"];
 
 export default function OrderStatusScreen() {
   const { id, confirm } = useLocalSearchParams<{ id: string; confirm?: string }>();
@@ -41,7 +43,7 @@ export default function OrderStatusScreen() {
         else if (!orders.find((o) => o.id === id)) setAuthErr(r.error);
       } else {
         setAuthErr(null);
-        if (r.order.status === "paid" || r.order.status === "cancelled") stop = true;
+        if (r.order.status === "ready" || r.order.status === "paid" || r.order.status === "cancelled") stop = true;
       }
     };
     void tick(true);
@@ -108,10 +110,14 @@ export default function OrderStatusScreen() {
       {order.status !== "cancelled" ? (
       <>
       <View style={styles.card}>
-        <Text style={styles.cardK}>Pay at the counter</Text>
+        <Text style={styles.cardK}>{order.status === "new" ? "Pay at the counter" : "Cash received"}</Text>
         <Text style={styles.big}>{money(order.total, cur)}</Text>
         <Text style={styles.pay}>
-          {order.payCash ? "CASH ONLY — hand exact cash to the cashier when you collect." : "Pay when collecting."}
+          {order.status === "new"
+            ? order.payCash
+              ? "CASH ONLY — hand cash to staff to start your order."
+              : "Pay at the counter to start your order."
+            : "Staff has taken payment. Kitchen is working on your order."}
         </Text>
         <Text style={styles.wait}>Estimated wait {waitCopy(order.estimatedWait)}</Text>
       </View>
@@ -163,14 +169,16 @@ export default function OrderStatusScreen() {
             variant="outline"
             disabled={cancelBusy}
             onPress={() => {
-              void (async () => {
-                setCancelBusy(true);
-                setCancelErr(null);
-                void hapticMedium();
-                const r = await cancelGuestOrder(order.id, order.confirmCode);
-                setCancelBusy(false);
-                if (!r.ok) setCancelErr(r.error);
-              })();
+              confirmOnce("Cancel order", "Are you sure?", () => {
+                void (async () => {
+                  setCancelBusy(true);
+                  setCancelErr(null);
+                  void hapticMedium();
+                  const r = await cancelGuestOrder(order.id, order.confirmCode);
+                  setCancelBusy(false);
+                  if (!r.ok) setCancelErr(r.error);
+                })();
+              });
             }}
           />
         ) : null}

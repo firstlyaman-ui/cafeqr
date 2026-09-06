@@ -86,7 +86,7 @@ Owner and staff PIN for seeded demos (Velvet Bean / Spice Lane / Himalayan Beans
 ## Demo highlights (competitor-style)
 
 - Sold-out / availability toggles (Spice Lane ships with Butter Pav Bhaji sold out)
-- Staff 4-digit confirm codes before kitchen (Petpooja-style)
+- Staff: cash-first flow (`new` → Cash received · Approve → preparing → ready); confirm dialogs on Cancel/Approve; guest confirm codes on `new`
 - Dine in / Takeaway at checkout
 - Menu search; QR ordering pause from owner
 - Custom tax name + rate per café (Nepal VAT 13%, India GST 5% with optional CGST/SGST split, US Tax 8%); WhatsApp share on receipt

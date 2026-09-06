@@ -215,17 +215,16 @@ export function statusLabel(s: OrderStatus): string {
   return { new: "New", preparing: "Preparing", ready: "Ready", paid: "Paid", cancelled: "Cancelled" }[s];
 }
 
+/** Cash-first kitchen flow: new (await cash) → preparing → ready (terminal). */
 export function nextStatus(s: OrderStatus): OrderStatus | null {
   if (s === "new") return "preparing";
   if (s === "preparing") return "ready";
-  if (s === "ready") return "paid";
   return null;
 }
 
-export function nextStatusLabel(s: OrderStatus, confirmCode?: string): string | null {
-  if (s === "new") return confirmCode ? `Confirm ${confirmCode}` : "Confirm order";
+export function nextStatusLabel(s: OrderStatus, _confirmCode?: string): string | null {
+  if (s === "new") return "Cash received · Approve";
   if (s === "preparing") return "Mark ready";
-  if (s === "ready") return "Cash received · Approve";
   return null;
 }
 
