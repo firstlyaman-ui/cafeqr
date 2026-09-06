@@ -6,6 +6,14 @@
  */
 /** Seed menus for velvet-bean and spice-lane */
 
+const { modifiersFromFlags } = require("./modifiers");
+
+function withMods(item, currency) {
+  const mods = modifiersFromFlags(!!item.has_milk, !!item.has_extra_shot, currency);
+  return mods.length ? { ...item, modifiers: mods } : { ...item, modifiers: [] };
+}
+
+
 const velvetBean = {
   slug: "velvet-bean",
   name: "Velvet Bean Café & Roastery",
@@ -511,5 +519,17 @@ const himalayanBeans = {
 };
 
 
-module.exports = { velvetBean, spiceLane, himalayanBeans };
+function attachModifiers(cafe) {
+  const currency = cafe.currency || "USD";
+  return {
+    ...cafe,
+    items: (cafe.items || []).map((it) => withMods(it, currency)),
+  };
+}
+
+module.exports = {
+  velvetBean: attachModifiers(velvetBean),
+  spiceLane: attachModifiers(spiceLane),
+  himalayanBeans: attachModifiers(himalayanBeans),
+};
 

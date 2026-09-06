@@ -116,14 +116,14 @@ export default function Checkout() {
           {cart.map((line) => {
             const item = items.find((i) => i.id === line.itemId);
             if (!item) return null;
-            const extra = optionBlurb(line.milk, line.extraShot);
+            const extra = optionBlurb({ milk: line.milk, extraShot: line.extraShot, selections: line.selections, item }, undefined, cafe);
             return (
               <View key={line.lineId} style={styles.row}>
                 <Text style={styles.lineTxt}>
                   {line.qty}× {item.name.toUpperCase()}
                   {extra ? `\n${extra}` : ""}
                 </Text>
-                <Text style={styles.lineAmt}>{money(lineUnitPrice(item, line.milk, line.extraShot) * line.qty, cur)}</Text>
+                <Text style={styles.lineAmt}>{money(lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, cafe) * line.qty, cur)}</Text>
               </View>
             );
           })}

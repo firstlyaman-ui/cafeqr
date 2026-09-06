@@ -1,3 +1,23 @@
+
+export interface ModifierOption {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  required?: boolean;
+  max?: number;
+  options: ModifierOption[];
+}
+
+export interface ModifierSelection {
+  groupId: string;
+  optionId: string;
+}
+
 export type DietaryTag = "popular" | "veg" | "vegan" | "gf";
 
 export type MilkOption = "whole" | "oat" | "almond" | "skim";
@@ -48,6 +68,8 @@ export interface MenuItem {
   image: string;
   hasMilk: boolean;
   hasExtraShot: boolean;
+  /** Structured customisations; empty → guest falls back to hasMilk/hasExtraShot */
+  modifiers?: ModifierGroup[];
   available: boolean;
 }
 
@@ -57,6 +79,7 @@ export interface CartLine {
   qty: number;
   milk?: MilkOption;
   extraShot?: boolean;
+  selections?: ModifierSelection[];
 }
 
 export interface GuestSession {
@@ -72,6 +95,7 @@ export interface OrderLine {
   unitPrice: number;
   milk?: MilkOption;
   extraShot?: boolean;
+  selections?: ModifierSelection[];
 }
 
 export interface Order {

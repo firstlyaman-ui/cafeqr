@@ -1,12 +1,23 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Photo, Stepper } from "@/components/ui";
 import { money } from "@/lib/format";
 import { hapticLight } from "@/lib/haptics";
+import {
+  effectiveModifiers,
+  legacyFromSelections,
+  priceWithSelections,
+} from "@/lib/modifiers";
 import { borderWidth, colors, radius, type } from "@/lib/theme";
-import { surchargeDefaults, type MenuItem, type MilkOption } from "@/lib/types";
+import type { MenuItem, ModifierSelection } from "@/lib/types";
 import { useStore } from "@/lib/store";
+
+export type AddOpts = {
+  milk?: string;
+  extraShot?: boolean;
+  selections?: ModifierSelection[];
+};
 
 function Inner({
   item,
@@ -17,27 +28,34 @@ function Inner({
   item: MenuItem;
   accent: string;
   onClose: () => void;
-  onAdd: (opts: { milk?: MilkOption; extraShot?: boolean }, qty: number) => void;
+  onAdd: (opts: AddOpts, qty: number) => void;
 }) {
   const { cafe } = useStore();
-  const [milk, setMilk] = useState<MilkOption>("whole");
-  const [shot, setShot] = useState(false);
-  const [qty, setQty] = useState(1);
-  const sur = surchargeDefaults(cafe?.currency);
-  const altMilk = Number.isFinite(Number(cafe?.altMilkPrice)) ? Number(cafe.altMilkPrice) : sur.altMilk;
-  const extraShot = Number.isFinite(Number(cafe?.extraShotPrice)) ? Number(cafe.extraShotPrice) : sur.extraShot;
   const cur = cafe?.currency || "USD";
+  const mods = useMemo(
+    () =>
+      effectiveModifiers(item, {
+        currency: cafe?.currency,
+        altMilkPrice: cafe?.altMilkPrice,
+        extraShotPrice: cafe?.extraShotPrice,
+      }),
+    [item, cafe?.currency, cafe?.altMilkPrice, cafe?.extraShotPrice],
+  );
 
-  const milks: { id: MilkOption; label: string; extra: number }[] = [
-    { id: "whole", label: "Whole", extra: 0 },
-    { id: "oat", label: "Oat", extra: altMilk },
-    { id: "almond", label: "Almond", extra: altMilk },
-    { id: "skim", label: "Skim", extra: 0 },
-  ];
+  const [picked, setPicked] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const g of mods) {
+      if (g.options[0]) init[g.id] = g.options[0].id;
+    }
+    return init;
+  });
+  const [qty, setQty] = useState(1);
 
-  let unit = item.price;
-  if (item.hasMilk && (milk === "oat" || milk === "almond")) unit += altMilk;
-  if (item.hasExtraShot && shot) unit += extraShot;
+  const selections: ModifierSelection[] = mods
+    .filter((g) => picked[g.id])
+    .map((g) => ({ groupId: g.id, optionId: picked[g.id] }));
+
+  const unit = priceWithSelections(item.price, mods, selections);
   const total = unit * qty;
 
   return (
@@ -52,42 +70,35 @@ function Inner({
           </View>
         </Photo>
       </View>
-      <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={styles.body}>
+      <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={styles.body}>
         <View style={styles.titleRow}>
           <Text style={styles.name}>{item.name.toUpperCase()}</Text>
-          <Text style={styles.price}>{money(item.price)}</Text>
+          <Text style={styles.price}>{money(item.price, cur)}</Text>
         </View>
         <Text style={styles.desc}>{item.description}</Text>
 
-        {item.hasMilk ? (
-          <View style={{ marginTop: 18 }}>
-            <Text style={styles.lbl}>Milk</Text>
+        {mods.map((g) => (
+          <View key={g.id} style={{ marginTop: 18 }}>
+            <Text style={styles.lbl}>{g.name}</Text>
             <View style={styles.row}>
-              {milks.map((m) => (
-                <Pressable
-                  key={m.id}
-                  onPress={() => setMilk(m.id)}
-                  style={[styles.opt, milk === m.id && { backgroundColor: colors.ink }]}
-                >
-                  <Text style={[styles.optT, milk === m.id && { color: colors.white }]}>
-                    {m.label}
-                    {m.extra ? ` +${money(m.extra, cur)}` : ""}
-                  </Text>
-                </Pressable>
-              ))}
+              {g.options.map((o) => {
+                const on = picked[g.id] === o.id;
+                return (
+                  <Pressable
+                    key={o.id}
+                    onPress={() => setPicked((prev) => ({ ...prev, [g.id]: o.id }))}
+                    style={[styles.opt, on && { backgroundColor: colors.ink }]}
+                  >
+                    <Text style={[styles.optT, on && { color: colors.white }]}>
+                      {o.name}
+                      {o.price ? ` +${money(o.price, cur)}` : ""}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
-        ) : null}
-
-        {item.hasExtraShot ? (
-          <Pressable
-            onPress={() => setShot((v) => !v)}
-            style={[styles.shot, shot && { backgroundColor: colors.wash }]}
-          >
-            <Text style={{ fontWeight: "800", color: colors.ink, letterSpacing: 0.6 }}>EXTRA SHOT</Text>
-            <Text style={{ color: colors.muted, fontWeight: "700" }}>+{money(extraShot, cur)}</Text>
-          </Pressable>
-        ) : null}
+        ))}
       </ScrollView>
 
       <View style={styles.foot}>
@@ -99,10 +110,12 @@ function Inner({
         <Pressable
           onPress={() => {
             void hapticLight();
+            const legacy = legacyFromSelections(selections);
             onAdd(
               {
-                milk: item.hasMilk ? milk : undefined,
-                extraShot: item.hasExtraShot ? shot : undefined,
+                selections,
+                milk: legacy.milk,
+                extraShot: legacy.extraShot,
               },
               qty,
             );
@@ -130,7 +143,7 @@ export function OptionsSheet({
   item: MenuItem | null;
   accent: string;
   onClose: () => void;
-  onAdd: (opts: { milk?: MilkOption; extraShot?: boolean }, qty: number) => void;
+  onAdd: (opts: AddOpts, qty: number) => void;
 }) {
   if (!item) return null;
   return (
@@ -216,17 +229,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   optT: { fontSize: 13, fontWeight: "700", color: colors.ink },
-  shot: {
-    marginTop: 16,
-    minHeight: 52,
-    borderWidth,
-    borderColor: colors.ink,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.white,
-  },
   foot: {
     flexDirection: "row",
     alignItems: "center",

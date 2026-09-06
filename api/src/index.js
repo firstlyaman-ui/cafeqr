@@ -22,6 +22,12 @@ const {
   priceLine,
   recomputeOrder,
 } = require("./pricing");
+const {
+  parseModifiers,
+  serializeModifiers,
+  deriveFlagsFromModifiers,
+  modifiersFromFlags,
+} = require("./modifiers");
 
 const PORT = process.env.PORT || 8787;
 const VERSION =
@@ -82,6 +88,7 @@ function mapItem(row) {
   try {
     tags = JSON.parse(row.tags || "[]");
   } catch (_) {}
+  const modifiers = parseModifiers(row.modifiers);
   return {
     id: row.id,
     categoryId: row.category_id,
@@ -93,37 +100,67 @@ function mapItem(row) {
     image: row.image || "",
     hasMilk: !!row.has_milk,
     hasExtraShot: !!row.has_extra_shot,
+    modifiers,
     active: row.active === undefined ? true : !!row.active,
     available: row.available === undefined || row.available === null ? true : !!row.available,
   };
 }
 
-function mapOrder(row) {
-  let items = [];
-  try {
-    items = typeof row.items === "string" ? JSON.parse(row.items || "[]") : row.items || [];
-  } catch (_) {}
-  const dining = row.dining_option === "takeaway" ? "takeaway" : "dine_in";
-  return {
-    id: row.id,
-    cafeId: row.cafe_id,
-    table: row.table_no,
-    guestName: row.guest_name,
-    phone: row.phone || "",
-    notes: row.notes || "",
-    items,
-    subtotal: row.subtotal,
-    tax: row.tax,
-    taxName: row.tax_name || "",
-    total: row.total,
-    status: row.status,
-    estimatedWait: row.estimated_wait,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    confirmCode: row.confirm_code || "",
-    diningOption: dining,
-    payCash: true,
-  };
+function resolveItemModifiersAndFlags(b, row, cafe) {
+  const currency = cafe?.currency;
+  let modifiers = row ? parseModifiers(row.modifiers) : [];
+
+  if (b.modifiers !== undefined) {
+    modifiers = parseModifiers(b.modifiers);
+    const flags = deriveFlagsFromModifiers(modifiers);
+    return { modifiers, has_milk: flags.has_milk, has_extra_shot: flags.has_extra_shot };
+  }
+
+  const toggled =
+    b.hasMilk !== undefined ||
+    b.hasExtraShot !== undefined ||
+    b.has_milk !== undefined ||
+    b.has_extra_shot !== undefined;
+
+  let hasMilk =
+    b.hasMilk !== undefined
+      ? b.hasMilk
+        ? 1
+        : 0
+      : b.has_milk !== undefined
+        ? b.has_milk
+          ? 1
+          : 0
+        : row
+          ? row.has_milk
+          : 0;
+  let hasExtraShot =
+    b.hasExtraShot !== undefined
+      ? b.hasExtraShot
+        ? 1
+        : 0
+      : b.has_extra_shot !== undefined
+        ? b.has_extra_shot
+          ? 1
+          : 0
+        : row
+          ? row.has_extra_shot
+          : 0;
+
+  if (toggled) {
+    const custom = modifiers.filter(
+      (g) => !(g.id === "milk" || /milk/i.test(g.name) || g.id === "extra-shot" || /extra\s*shot/i.test(g.name))
+    );
+    modifiers = [...modifiersFromFlags(!!hasMilk, !!hasExtraShot, currency), ...custom];
+  } else if (!modifiers.length && (hasMilk || hasExtraShot)) {
+    modifiers = modifiersFromFlags(!!hasMilk, !!hasExtraShot, currency);
+  } else if (modifiers.length) {
+    const flags = deriveFlagsFromModifiers(modifiers);
+    hasMilk = flags.has_milk;
+    hasExtraShot = flags.has_extra_shot;
+  }
+
+  return { modifiers, has_milk: hasMilk ? 1 : 0, has_extra_shot: hasExtraShot ? 1 : 0 };
 }
 
 async function requireOwner(store, req, res, slug) {
@@ -519,6 +556,7 @@ async function createApp() {
       if (!cat) return sendError(res, 400, "INVALID_CATEGORY", "Invalid category");
       const id = b.id || nid("item");
       const available = b.available === false || b.available === 0 ? 0 : 1;
+      const resolved = resolveItemModifiersAndFlags(b, null, cafe);
       const row = await store.createItem({
         id,
         cafe_id: cafe.id,
@@ -531,8 +569,9 @@ async function createApp() {
           : 5,
         tags: b.tags || [],
         image: b.image || "",
-        has_milk: b.hasMilk || b.has_milk ? 1 : 0,
-        has_extra_shot: b.hasExtraShot || b.has_extra_shot ? 1 : 0,
+        has_milk: resolved.has_milk,
+        has_extra_shot: resolved.has_extra_shot,
+        modifiers: serializeModifiers(resolved.modifiers),
         active: b.active === false ? 0 : 1,
         available,
       });
@@ -563,6 +602,7 @@ async function createApp() {
       const tags = b.tags !== undefined ? JSON.stringify(Array.isArray(b.tags) ? b.tags : []) : row.tags;
       let available = row.available === undefined || row.available === null ? 1 : row.available;
       if (b.available !== undefined) available = b.available ? 1 : 0;
+      const resolved = resolveItemModifiersAndFlags(b, row, cafe);
       const updated = await store.updateItem(row.id, cafe.id, {
         category_id: categoryId,
         name: b.name !== undefined ? String(b.name).trim() || row.name : row.name,
@@ -579,26 +619,9 @@ async function createApp() {
               : row.prep_minutes,
         tags,
         image: b.image !== undefined ? String(b.image) : row.image,
-        has_milk:
-          b.hasMilk !== undefined
-            ? b.hasMilk
-              ? 1
-              : 0
-            : b.has_milk !== undefined
-              ? b.has_milk
-                ? 1
-                : 0
-              : row.has_milk,
-        has_extra_shot:
-          b.hasExtraShot !== undefined
-            ? b.hasExtraShot
-              ? 1
-              : 0
-            : b.has_extra_shot !== undefined
-              ? b.has_extra_shot
-                ? 1
-                : 0
-              : row.has_extra_shot,
+        has_milk: resolved.has_milk,
+        has_extra_shot: resolved.has_extra_shot,
+        modifiers: serializeModifiers(resolved.modifiers),
         active: b.active !== undefined ? (b.active ? 1 : 0) : row.active,
         available,
       });

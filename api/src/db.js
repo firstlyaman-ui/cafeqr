@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS items (
   image TEXT DEFAULT '',
   has_milk INTEGER DEFAULT 0,
   has_extra_shot INTEGER DEFAULT 0,
+  modifiers TEXT DEFAULT '[]',
   active INTEGER DEFAULT 1,
   available INTEGER DEFAULT 1,
   FOREIGN KEY (cafe_id) REFERENCES cafes(id) ON DELETE CASCADE
@@ -238,6 +239,24 @@ function migrate(adapter) {
   if (itemCols.length && !itemCols.includes("available")) {
     adapter.exec("ALTER TABLE items ADD COLUMN available INTEGER DEFAULT 1");
   }
+  if (itemCols.length && !itemCols.includes("modifiers")) {
+    adapter.exec("ALTER TABLE items ADD COLUMN modifiers TEXT DEFAULT '[]'");
+  }
+  // Backfill structured modifiers from legacy flags when empty
+  try {
+    const { modifiersFromFlags, parseModifiers, serializeModifiers } = require("./modifiers");
+    const cafes = adapter.prepare("SELECT id, currency FROM cafes").all();
+    const cafeCur = Object.fromEntries(cafes.map((c) => [c.id, c.currency]));
+    const items = adapter.prepare("SELECT id, cafe_id, has_milk, has_extra_shot, modifiers FROM items").all();
+    const upd = adapter.prepare("UPDATE items SET modifiers = ? WHERE id = ?");
+    for (const it of items) {
+      const existing = parseModifiers(it.modifiers);
+      if (existing.length) continue;
+      if (!it.has_milk && !it.has_extra_shot) continue;
+      const mods = modifiersFromFlags(!!it.has_milk, !!it.has_extra_shot, cafeCur[it.cafe_id]);
+      if (mods.length) upd.run(serializeModifiers(mods), it.id);
+    }
+  } catch (_) {}
 
   const orderCols = columnNames(adapter, "orders");
   if (orderCols.length && !orderCols.includes("confirm_code")) {

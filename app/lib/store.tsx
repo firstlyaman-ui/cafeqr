@@ -21,9 +21,11 @@ import type {
   MenuCategory,
   MenuItem,
   MilkOption,
+  ModifierSelection,
   Order,
   OrderStatus,
 } from "./types";
+import { selectionsKey } from "./modifiers";
 import { OWNER_PIN, STAFF_PIN, surchargeDefaults } from "./types";
 
 export type StoreResult = { ok: true } | { ok: false; error: string };
@@ -128,6 +130,7 @@ function mapApiItem(i: {
   image: string;
   hasMilk: boolean;
   hasExtraShot: boolean;
+  modifiers?: MenuItem["modifiers"];
   available?: boolean;
 }): MenuItem {
   return {
@@ -141,6 +144,7 @@ function mapApiItem(i: {
     image: i.image,
     hasMilk: i.hasMilk,
     hasExtraShot: i.hasExtraShot,
+    modifiers: Array.isArray(i.modifiers) ? i.modifiers : [],
     available: i.available !== false,
   };
 }
@@ -190,7 +194,7 @@ interface Store extends Persist {
   restoreDemo: () => Promise<StoreResult>;
   markWelcomed: (table: string) => void;
   setGuest: (g: Partial<GuestSession>) => void;
-  addToCart: (itemId: string, opts?: { milk?: MilkOption; extraShot?: boolean }, table?: string) => void;
+  addToCart: (itemId: string, opts?: { milk?: MilkOption | string; extraShot?: boolean; selections?: ModifierSelection[] }, table?: string) => void;
   setQty: (lineId: string, qty: number) => void;
   removeLine: (lineId: string) => void;
   clearCart: () => void;
@@ -546,6 +550,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         tags: Array.isArray(item.tags) ? item.tags : [],
         hasMilk: !!item.hasMilk,
         hasExtraShot: !!item.hasExtraShot,
+        modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
         available: item.available !== false,
       };
       const s = stateRef.current;
@@ -653,15 +658,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addToCart = useCallback(
-    (itemId: string, opts?: { milk?: MilkOption; extraShot?: boolean }, table?: string) =>
+    (itemId: string, opts?: { milk?: MilkOption | string; extraShot?: boolean; selections?: ModifierSelection[] }, table?: string) =>
       patch((s) => {
         let cart = s.cart;
         let cartTable = s.cartTable;
         if (table && cartTable && cartTable !== table) cart = [];
         if (table) cartTable = table;
+        const selKey = selectionsKey(opts?.selections);
         const match = cart.find(
           (l) =>
             l.itemId === itemId &&
+            selectionsKey(l.selections) === selKey &&
             l.milk === opts?.milk &&
             Boolean(l.extraShot) === Boolean(opts?.extraShot),
         );
@@ -681,8 +688,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               lineId: nid("ln"),
               itemId,
               qty: 1,
-              milk: opts?.milk,
+              milk: opts?.milk as MilkOption | undefined,
               extraShot: opts?.extraShot,
+              selections: opts?.selections,
             },
           ],
         };
@@ -735,9 +743,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             itemId: item.id,
             name: item.name,
             qty: line.qty,
-            unitPrice: lineUnitPrice(item, line.milk, line.extraShot, s.cafe),
+            unitPrice: lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, s.cafe),
             milk: line.milk,
             extraShot: line.extraShot,
+            selections: line.selections,
           };
         })
         .filter(Boolean) as Order["items"];
@@ -980,6 +989,7 @@ export function emptyItem(categoryId: string): MenuItem {
       "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
     hasMilk: false,
     hasExtraShot: false,
+    modifiers: [],
     available: true,
   };
 }

@@ -1,5 +1,12 @@
 /** Server-side order pricing — never trust client unitPrice/subtotal/tax/total. */
 
+const {
+  parseModifiers,
+  resolveSelections,
+  priceFromModifiers,
+  legacyFromSelections,
+} = require("./modifiers");
+
 function defaultSurcharges(currency) {
   const c = String(currency || "USD").toUpperCase();
   if (c === "NPR") return { altMilk: 25, extraShot: 40 };
@@ -54,17 +61,32 @@ function roundMoney(n) {
 
 function priceLine(itemRow, line, cafe) {
   const qty = Math.max(1, Math.min(99, Math.floor(Number(line.qty) || 1)));
-  let unit = Number(itemRow.price) || 0;
-  const milk = line.milk ? String(line.milk) : undefined;
-  const extraShot = !!(line.extraShot || line.extra_shot);
-  if ((milk === "oat" || milk === "almond") && itemRow.has_milk) {
-    unit += cafeAltMilkPrice(cafe);
+  const modifiers = parseModifiers(itemRow.modifiers);
+  let unit;
+  let milk;
+  let extraShot;
+  let selections;
+
+  if (modifiers.length) {
+    selections = resolveSelections(line, modifiers);
+    unit = roundMoney(priceFromModifiers(itemRow.price, modifiers, selections));
+    const legacy = legacyFromSelections(selections, modifiers);
+    milk = legacy.milk;
+    extraShot = legacy.extraShot;
+  } else {
+    unit = Number(itemRow.price) || 0;
+    milk = line.milk ? String(line.milk) : undefined;
+    extraShot = !!(line.extraShot || line.extra_shot);
+    if ((milk === "oat" || milk === "almond") && itemRow.has_milk) {
+      unit += cafeAltMilkPrice(cafe);
+    }
+    if (extraShot && itemRow.has_extra_shot) {
+      unit += cafeExtraShotPrice(cafe);
+    }
+    unit = roundMoney(unit);
   }
-  if (extraShot && itemRow.has_extra_shot) {
-    unit += cafeExtraShotPrice(cafe);
-  }
-  unit = roundMoney(unit);
-  return {
+
+  const out = {
     itemId: itemRow.id,
     name: itemRow.name,
     qty,
@@ -72,6 +94,8 @@ function priceLine(itemRow, line, cafe) {
     milk: milk || undefined,
     extraShot: extraShot || undefined,
   };
+  if (selections && selections.length) out.selections = selections;
+  return out;
 }
 
 function recomputeOrder(pricedLines, cafe, prepMinutesList = []) {

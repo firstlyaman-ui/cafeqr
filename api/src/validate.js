@@ -1,5 +1,19 @@
 const { z } = require("zod");
 
+const modifierOptionSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(80),
+  price: z.union([z.number(), z.string()]).optional(),
+}).passthrough();
+
+const modifierGroupSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(80),
+  required: z.boolean().optional(),
+  max: z.union([z.number(), z.string()]).optional(),
+  options: z.array(modifierOptionSchema).optional(),
+}).passthrough();
+
 const createCafeSchema = z.object({
   name: z.string().min(1).optional(),
   slug: z.string().min(1).optional(),
@@ -77,6 +91,7 @@ const itemSchema = z.object({
   has_milk: z.union([z.boolean(), z.number()]).optional(),
   hasExtraShot: z.boolean().optional(),
   has_extra_shot: z.union([z.boolean(), z.number()]).optional(),
+  modifiers: z.array(modifierGroupSchema).optional(),
   active: z.boolean().optional(),
   available: z.union([z.boolean(), z.number()]).optional(),
 }).passthrough();
@@ -90,6 +105,12 @@ const orderLineSchema = z.object({
   milk: z.string().optional(),
   extraShot: z.union([z.boolean(), z.number()]).optional(),
   extra_shot: z.union([z.boolean(), z.number()]).optional(),
+  selections: z.array(z.object({
+    groupId: z.string().optional(),
+    group_id: z.string().optional(),
+    optionId: z.string().optional(),
+    option_id: z.string().optional(),
+  }).passthrough()).optional(),
 }).passthrough();
 
 const placeOrderSchema = z.object({

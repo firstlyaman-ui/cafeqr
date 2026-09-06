@@ -69,6 +69,7 @@ Owner and staff PIN for seeded demos (Velvet Bean / Spice Lane / Himalayan Beans
 - Dine in / Takeaway at checkout
 - Menu search; QR ordering pause from owner
 - Custom tax name + rate per café (Nepal VAT 13%, India GST 5% with optional CGST/SGST split, US Tax 8%); WhatsApp share on receipt
+- Owner menu: photo URL + preview; per-item customisations (milk options, extra shot, custom groups) with live guest options
 
 ## Layout
 

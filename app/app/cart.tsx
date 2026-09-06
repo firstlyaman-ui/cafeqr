@@ -28,13 +28,13 @@ export default function Cart() {
           {cart.map((line) => {
             const item = items.find((i) => i.id === line.itemId);
             if (!item) return null;
-            const unit = lineUnitPrice(item, line.milk, line.extraShot);
+            const unit = lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, cafe);
             return (
               <View key={line.lineId} style={styles.row}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
                   <Text style={styles.name}>{item.name}</Text>
-                  {optionBlurb(line.milk, line.extraShot) ? (
-                    <Text style={styles.opt}>{optionBlurb(line.milk, line.extraShot)}</Text>
+                  {optionBlurb({ milk: line.milk, extraShot: line.extraShot, selections: line.selections, item }, undefined, cafe) ? (
+                    <Text style={styles.opt}>{optionBlurb({ milk: line.milk, extraShot: line.extraShot, selections: line.selections, item }, undefined, cafe)}</Text>
                   ) : null}
                   <Text style={styles.price}>{money(unit, cur)} each</Text>
                 </View>

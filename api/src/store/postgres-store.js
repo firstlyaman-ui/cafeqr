@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS items (
   image TEXT DEFAULT '',
   has_milk INTEGER DEFAULT 0,
   has_extra_shot INTEGER DEFAULT 0,
+  modifiers TEXT DEFAULT '[]',
   active INTEGER DEFAULT 1,
   available INTEGER DEFAULT 1
 );
@@ -146,6 +147,7 @@ class PostgresStore {
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS alt_milk_price DOUBLE PRECISION`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS extra_shot_price DOUBLE PRECISION`,
       `ALTER TABLE items ADD COLUMN IF NOT EXISTS available INTEGER DEFAULT 1`,
+      `ALTER TABLE items ADD COLUMN IF NOT EXISTS modifiers TEXT DEFAULT '[]'`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirm_code TEXT DEFAULT ''`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS dining_option TEXT DEFAULT 'dine_in'`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_name TEXT DEFAULT ''`,
@@ -162,6 +164,23 @@ class PostgresStore {
            AND (tax_name IS NULL OR tax_name = '' OR tax_name = 'Tax')`
       );
       await this.query(`UPDATE cafes SET country = 'NP', tax_name = 'VAT', tax_rate = 0.13 WHERE currency = 'NPR'`);
+    } catch (_) {}
+
+    // Backfill structured modifiers from legacy flags when empty
+    try {
+      const { modifiersFromFlags, parseModifiers, serializeModifiers } = require("../modifiers");
+      const cafes = (await this.query("SELECT id, currency FROM cafes")).rows;
+      const cafeCur = Object.fromEntries(cafes.map((c) => [c.id, c.currency]));
+      const items = (await this.query("SELECT id, cafe_id, has_milk, has_extra_shot, modifiers FROM items")).rows;
+      for (const it of items) {
+        const existing = parseModifiers(it.modifiers);
+        if (existing.length) continue;
+        if (!Number(it.has_milk) && !Number(it.has_extra_shot)) continue;
+        const mods = modifiersFromFlags(!!Number(it.has_milk), !!Number(it.has_extra_shot), cafeCur[it.cafe_id]);
+        if (mods.length) {
+          await this.query("UPDATE items SET modifiers = $1 WHERE id = $2", [serializeModifiers(mods), it.id]);
+        }
+      }
     } catch (_) {}
   }
 
@@ -321,8 +340,8 @@ class PostgresStore {
 
   async createItem(row) {
     await this.query(
-      `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, active, available)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, modifiers, active, available)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         row.id,
         row.cafe_id,
@@ -335,6 +354,7 @@ class PostgresStore {
         row.image ?? "",
         row.has_milk ?? 0,
         row.has_extra_shot ?? 0,
+        typeof row.modifiers === "string" ? row.modifiers : JSON.stringify(row.modifiers || []),
         row.active ?? 1,
         row.available ?? 1,
       ]
@@ -349,8 +369,8 @@ class PostgresStore {
     await this.query(
       `UPDATE items SET
         category_id = $1, name = $2, description = $3, price = $4, prep_minutes = $5,
-        tags = $6, image = $7, has_milk = $8, has_extra_shot = $9, active = $10, available = $11
-       WHERE id = $12`,
+        tags = $6, image = $7, has_milk = $8, has_extra_shot = $9, modifiers = $10, active = $11, available = $12
+       WHERE id = $13`,
       [
         fields.category_id,
         fields.name,
@@ -361,6 +381,7 @@ class PostgresStore {
         fields.image,
         fields.has_milk,
         fields.has_extra_shot,
+        typeof fields.modifiers === "string" ? fields.modifiers : JSON.stringify(fields.modifiers || []),
         fields.active,
         fields.available,
         id,

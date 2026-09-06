@@ -159,8 +159,8 @@ class SqliteStore {
   async createItem(row) {
     this.db
       .prepare(
-        `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, active, available)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO items (id, cafe_id, category_id, name, description, price, prep_minutes, tags, image, has_milk, has_extra_shot, modifiers, active, available)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -174,6 +174,7 @@ class SqliteStore {
         row.image ?? "",
         row.has_milk ?? 0,
         row.has_extra_shot ?? 0,
+        typeof row.modifiers === "string" ? row.modifiers : JSON.stringify(row.modifiers || []),
         row.active ?? 1,
         row.available ?? 1
       );
@@ -187,7 +188,7 @@ class SqliteStore {
       .prepare(
         `UPDATE items SET
           category_id = ?, name = ?, description = ?, price = ?, prep_minutes = ?,
-          tags = ?, image = ?, has_milk = ?, has_extra_shot = ?, active = ?, available = ?
+          tags = ?, image = ?, has_milk = ?, has_extra_shot = ?, modifiers = ?, active = ?, available = ?
          WHERE id = ?`
       )
       .run(
@@ -200,6 +201,7 @@ class SqliteStore {
         fields.image,
         fields.has_milk,
         fields.has_extra_shot,
+        typeof fields.modifiers === "string" ? fields.modifiers : JSON.stringify(fields.modifiers || []),
         fields.active,
         fields.available,
         id

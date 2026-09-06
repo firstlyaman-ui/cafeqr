@@ -13,7 +13,8 @@ import { cartTotals, padTable, tableLabel } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { hapticLight } from "@/lib/haptics";
 import { colors } from "@/lib/theme";
-import type { DietaryFilter, MenuItem, MilkOption } from "@/lib/types";
+import type { DietaryFilter, MenuItem } from "@/lib/types";
+import { itemHasOptions } from "@/lib/modifiers";
 
 function dietOk(item: MenuItem, filter: DietaryFilter) {
   if (filter === "all") return true;
@@ -77,7 +78,7 @@ export default function CafeTableMenu() {
     const line = firstLine(item.id);
     if (!line) {
       if (dir > 0) {
-        if (item.hasMilk || item.hasExtraShot) setSheet(item);
+        if (itemHasOptions(item)) setSheet(item);
         else { void hapticLight(); addToCart(item.id, {}, table); }
       }
       return;
@@ -213,7 +214,7 @@ export default function CafeTableMenu() {
                   onOpen={() => { if (item.available !== false) setSheet(item); }}
                   onAdd={() => {
                     if (item.available === false) return;
-                    if (item.hasMilk || item.hasExtraShot) setSheet(item);
+                    if (itemHasOptions(item)) setSheet(item);
                     else { void hapticLight(); addToCart(item.id, {}, table); }
                   }}
                   onInc={() => bump(item, 1)}
@@ -247,7 +248,7 @@ export default function CafeTableMenu() {
         item={sheet}
         accent={accent}
         onClose={() => setSheet(null)}
-        onAdd={(opts: { milk?: MilkOption; extraShot?: boolean }, qty: number) => {
+        onAdd={(opts, qty) => {
           const id = sheet?.id;
           if (!id) return;
           void hapticLight();

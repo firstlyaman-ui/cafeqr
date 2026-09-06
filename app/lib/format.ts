@@ -6,8 +6,15 @@ import {
   type CafeProfile,
   type MenuItem,
   type MilkOption,
+  type ModifierSelection,
   type OrderStatus,
 } from "./types";
+import {
+  blurbFromSelections,
+  effectiveModifiers,
+  legacyFromSelections,
+  priceWithSelections,
+} from "./modifiers";
 
 export function money(n: number, currency: string = "USD"): string {
   const v = Number.isFinite(n) ? n : 0;
@@ -80,23 +87,37 @@ export function padTable(id: string): string {
 
 export function lineUnitPrice(
   item: MenuItem,
-  milk?: MilkOption,
+  milkOrOpts?: MilkOption | { milk?: MilkOption; extraShot?: boolean; selections?: ModifierSelection[] },
   extraShot?: boolean,
   cafe?: Pick<CafeProfile, "currency" | "altMilkPrice" | "extraShotPrice"> | string,
 ): number {
+  const cafeObj = typeof cafe === "string" ? undefined : cafe;
   const currency = typeof cafe === "string" ? cafe : cafe?.currency;
+  const opts =
+    milkOrOpts && typeof milkOrOpts === "object" && !Array.isArray(milkOrOpts) && ("selections" in milkOrOpts || "milk" in milkOrOpts || "extraShot" in milkOrOpts)
+      ? (milkOrOpts as { milk?: MilkOption; extraShot?: boolean; selections?: ModifierSelection[] })
+      : { milk: milkOrOpts as MilkOption | undefined, extraShot };
+
+  const mods = effectiveModifiers(item, cafeObj ? { currency: cafeObj.currency, altMilkPrice: cafeObj.altMilkPrice, extraShotPrice: cafeObj.extraShotPrice } : undefined);
+  if (mods.length) {
+    let selections = opts.selections;
+    if (!selections?.length) {
+      const sels: ModifierSelection[] = [];
+      if (opts.milk) sels.push({ groupId: "milk", optionId: String(opts.milk) });
+      if (opts.extraShot) sels.push({ groupId: "extra-shot", optionId: "yes" });
+      selections = sels;
+    }
+    return priceWithSelections(item.price, mods, selections);
+  }
+
   const defaults = surchargeDefaults(currency);
   const alt =
-    typeof cafe === "object" && cafe && Number.isFinite(Number(cafe.altMilkPrice))
-      ? Number(cafe.altMilkPrice)
-      : defaults.altMilk;
+    cafeObj && Number.isFinite(Number(cafeObj.altMilkPrice)) ? Number(cafeObj.altMilkPrice) : defaults.altMilk;
   const shot =
-    typeof cafe === "object" && cafe && Number.isFinite(Number(cafe.extraShotPrice))
-      ? Number(cafe.extraShotPrice)
-      : defaults.extraShot;
+    cafeObj && Number.isFinite(Number(cafeObj.extraShotPrice)) ? Number(cafeObj.extraShotPrice) : defaults.extraShot;
   let p = item.price;
-  if (milk === "oat" || milk === "almond") p += alt;
-  if (extraShot) p += shot;
+  if (opts.milk === "oat" || opts.milk === "almond") p += alt;
+  if (opts.extraShot) p += shot;
   return p;
 }
 
@@ -120,7 +141,7 @@ export function cartTotals(
   const subtotal = lines.reduce((sum, line) => {
     const item = items.find((i) => i.id === line.itemId);
     if (!item) return sum;
-    return sum + lineUnitPrice(item, line.milk, line.extraShot, cafe) * line.qty;
+    return sum + lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, cafe) * line.qty;
   }, 0);
   const roundedSub = Math.round(subtotal * 100) / 100;
   const tax = Math.round(roundedSub * rate * 100) / 100;
@@ -149,26 +170,44 @@ export function cartTotals(
 }
 
 export function optionBlurb(
-  milk?: MilkOption,
+  milk?: MilkOption | { milk?: MilkOption; extraShot?: boolean; selections?: ModifierSelection[]; item?: MenuItem },
   extraShot?: boolean,
   cafe?: Pick<CafeProfile, "currency" | "altMilkPrice" | "extraShotPrice">,
+  item?: MenuItem,
 ): string {
+  const opts =
+    milk && typeof milk === "object" && ("selections" in milk || "item" in milk || "milk" in milk || "extraShot" in milk)
+      ? (milk as { milk?: MilkOption; extraShot?: boolean; selections?: ModifierSelection[]; item?: MenuItem })
+      : { milk: milk as MilkOption | undefined, extraShot, item };
+  const cur = cafe?.currency || "USD";
+  const menuItem = opts.item || item;
+  if (menuItem) {
+    const mods = effectiveModifiers(menuItem, cafe);
+    if (mods.length && opts.selections?.length) {
+      return blurbFromSelections(mods, opts.selections, cur, money);
+    }
+    if (mods.length && (opts.milk || opts.extraShot)) {
+      const sels: ModifierSelection[] = [];
+      if (opts.milk) sels.push({ groupId: "milk", optionId: String(opts.milk) });
+      if (opts.extraShot) sels.push({ groupId: "extra-shot", optionId: "yes" });
+      return blurbFromSelections(mods, sels, cur, money);
+    }
+  }
   const bits: string[] = [];
   const defaults = surchargeDefaults(cafe?.currency);
   const alt = cafe && Number.isFinite(Number(cafe.altMilkPrice)) ? Number(cafe.altMilkPrice) : defaults.altMilk;
   const shot =
     cafe && Number.isFinite(Number(cafe.extraShotPrice)) ? Number(cafe.extraShotPrice) : defaults.extraShot;
-  const cur = cafe?.currency || "USD";
-  if (milk) {
-    const labels: Record<MilkOption, string> = {
+  if (opts.milk) {
+    const labels: Record<string, string> = {
       whole: "Whole",
       oat: `Oat +${money(alt, cur)}`,
       almond: `Almond +${money(alt, cur)}`,
       skim: "Skim",
     };
-    bits.push(labels[milk]);
+    bits.push(labels[opts.milk] || String(opts.milk));
   }
-  if (extraShot) bits.push(`Extra shot +${money(shot, cur)}`);
+  if (opts.extraShot) bits.push(`Extra shot +${money(shot, cur)}`);
   return bits.join(" · ");
 }
 

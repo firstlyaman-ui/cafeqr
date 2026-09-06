@@ -56,6 +56,41 @@ describe("server-side pricing", () => {
   });
 });
 
+
+describe("structured modifiers pricing", () => {
+  it("prices from item modifiers (not cafe hardcoded surcharges)", () => {
+    const cafe = { currency: "NPR", tax_rate: 0.13, tax_name: "VAT" };
+    const item = {
+      id: "hb-chiya",
+      name: "Masala Chiya",
+      price: 80,
+      has_milk: 1,
+      has_extra_shot: 0,
+      modifiers: JSON.stringify([
+        {
+          id: "milk",
+          name: "Milk",
+          max: 1,
+          options: [
+            { id: "whole", name: "Whole", price: 0 },
+            { id: "oat", name: "Oat", price: 30 },
+            { id: "soy", name: "Soy", price: 35 },
+          ],
+        },
+      ]),
+    };
+    const line = priceLine(item, { itemId: "hb-chiya", qty: 1, milk: "soy" }, cafe);
+    assert.equal(line.unitPrice, 115);
+    assert.equal(line.milk, "soy");
+    const viaSel = priceLine(
+      item,
+      { itemId: "hb-chiya", qty: 1, selections: [{ groupId: "milk", optionId: "oat" }] },
+      cafe
+    );
+    assert.equal(viaSel.unitPrice, 110);
+  });
+});
+
 describe("PIN hygiene", () => {
   it("rejects 1234 on create", () => {
     assert.match(validateNewPin("1234", "ownerPin"), /1234/);

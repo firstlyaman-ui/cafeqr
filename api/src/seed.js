@@ -52,6 +52,7 @@ async function insertCafe(store, cafe) {
       image: it.image,
       has_milk: it.has_milk,
       has_extra_shot: it.has_extra_shot,
+      modifiers: it.modifiers || [],
       active: 1,
       available: it.available === 0 ? 0 : 1,
     });

@@ -47,12 +47,12 @@ export function CartDrawer({ open, onClose, table }: { open: boolean; onClose: (
             {cart.map((line) => {
               const item = items.find((i) => i.id === line.itemId);
               if (!item) return null;
-              const blurb = optionBlurb(line.milk, line.extraShot);
+              const blurb = optionBlurb({ milk: line.milk, extraShot: line.extraShot, selections: line.selections, item }, undefined, cafe);
               return (
                 <View key={line.lineId} style={styles.line}>
                   <View style={styles.lineTop}>
                     <Text style={styles.lineName}>{item.name.toUpperCase()}</Text>
-                    <Text style={styles.linePrice}>{money(lineUnitPrice(item, line.milk, line.extraShot) * line.qty, cur)}</Text>
+                    <Text style={styles.linePrice}>{money(lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, cafe) * line.qty, cur)}</Text>
                   </View>
                   <View style={styles.lineMid}>
                     <View style={styles.miniPrep}>
@@ -61,7 +61,7 @@ export function CartDrawer({ open, onClose, table }: { open: boolean; onClose: (
                     {blurb ? <Text style={styles.blurb}>{blurb}</Text> : null}
                   </View>
                   <View style={styles.lineBot}>
-                    <Text style={styles.each}>{money(lineUnitPrice(item, line.milk, line.extraShot), cur)} each</Text>
+                    <Text style={styles.each}>{money(lineUnitPrice(item, { milk: line.milk, extraShot: line.extraShot, selections: line.selections }, undefined, cafe), cur)} each</Text>
                     <Stepper qty={line.qty} onDec={() => setQty(line.lineId, line.qty - 1)} onInc={() => setQty(line.lineId, line.qty + 1)} />
                   </View>
                 </View>

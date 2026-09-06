@@ -10,7 +10,13 @@ import { isHttpUrl, money, parseIntInput, parseMoneyInput } from "@/lib/format";
 import { hapticError, hapticSuccess } from "@/lib/haptics";
 import { emptyItem, useStore } from "@/lib/store";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
-import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem } from "@/lib/types";
+import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem, type ModifierGroup } from "@/lib/types";
+import {
+  defaultExtraShotGroup,
+  defaultMilkGroup,
+  nidShort,
+  parseModifiers,
+} from "@/lib/modifiers";
 
 const TAGS: DietaryTag[] = ["popular", "veg", "vegan", "gf"];
 const DEFAULT_IMAGE =
@@ -22,8 +28,17 @@ function toDraft(item: MenuItem): Draft {
   return {
     ...item,
     tags: [...item.tags],
+    modifiers: parseModifiers(item.modifiers),
     priceStr: Number.isFinite(item.price) ? String(item.price) : "",
     prepStr: Number.isFinite(item.prepMinutes) ? String(item.prepMinutes) : "5",
+  };
+}
+
+
+function syncFlagsFromModifiers(mods: ModifierGroup[]): { hasMilk: boolean; hasExtraShot: boolean } {
+  return {
+    hasMilk: mods.some((g) => g.id === "milk" || /milk/i.test(g.name)),
+    hasExtraShot: mods.some((g) => g.id === "extra-shot" || /extra\s*shot/i.test(g.name)),
   };
 }
 
@@ -605,7 +620,7 @@ export default function Owner() {
               placeholder="5"
             />
             <Field
-              label="Photo URL"
+              label="Photo URL (paste image link)"
               value={editing.image}
               onChangeText={(v) => setEditing({ ...editing, image: v })}
               placeholder="https://…"
@@ -614,6 +629,16 @@ export default function Owner() {
             {editing.image.trim() && !isHttpUrl(editing.image) ? (
               <Text style={{ color: colors.danger, fontSize: 12 }}>URL must be http(s).</Text>
             ) : null}
+            {editing.image.trim() && isHttpUrl(editing.image) ? (
+              <Image
+                source={{ uri: editing.image.trim() }}
+                style={styles.preview}
+                resizeMode="cover"
+                accessibilityLabel="Photo preview"
+              />
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Paste an https image link to preview.</Text>
+            )}
             <Text style={styles.lbl}>Category</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {sortedCats.map((c) => (
@@ -645,12 +670,26 @@ export default function Owner() {
               <Toggle
                 label="Milk options"
                 on={editing.hasMilk}
-                onPress={() => setEditing({ ...editing, hasMilk: !editing.hasMilk })}
+                onPress={() => {
+                  const on = !editing.hasMilk;
+                  let mods = parseModifiers(editing.modifiers);
+                  mods = mods.filter((g) => !(g.id === "milk" || /milk/i.test(g.name)));
+                  if (on) mods = [defaultMilkGroup(cur), ...mods];
+                  const flags = syncFlagsFromModifiers(mods);
+                  setEditing({ ...editing, hasMilk: flags.hasMilk, hasExtraShot: flags.hasExtraShot, modifiers: mods });
+                }}
               />
               <Toggle
                 label="Extra shot"
                 on={editing.hasExtraShot}
-                onPress={() => setEditing({ ...editing, hasExtraShot: !editing.hasExtraShot })}
+                onPress={() => {
+                  const on = !editing.hasExtraShot;
+                  let mods = parseModifiers(editing.modifiers);
+                  mods = mods.filter((g) => !(g.id === "extra-shot" || /extra\s*shot/i.test(g.name)));
+                  if (on) mods = [...mods, defaultExtraShotGroup(cur)];
+                  const flags = syncFlagsFromModifiers(mods);
+                  setEditing({ ...editing, hasMilk: flags.hasMilk, hasExtraShot: flags.hasExtraShot, modifiers: mods });
+                }}
               />
               <Toggle
                 label={editing.available !== false ? "Available for order" : "Sold out"}
@@ -658,6 +697,116 @@ export default function Owner() {
                 onPress={() => setEditing({ ...editing, available: editing.available === false })}
               />
             </View>
+
+            <Text style={[styles.section, { marginTop: 8 }]}>Customisations</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Groups of options (milk, toppings, etc.) with prices in {cur}.
+            </Text>
+            {(editing.modifiers || []).map((group, gi) => (
+              <View key={group.id} style={styles.modCard}>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Group name"
+                      value={group.name}
+                      onChangeText={(v) => {
+                        const mods = parseModifiers(editing.modifiers).map((g, i) =>
+                          i === gi ? { ...g, name: v } : g,
+                        );
+                        const flags = syncFlagsFromModifiers(mods);
+                        setEditing({ ...editing, modifiers: mods, hasMilk: flags.hasMilk, hasExtraShot: flags.hasExtraShot });
+                      }}
+                    />
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      const mods = parseModifiers(editing.modifiers).filter((_, i) => i !== gi);
+                      const flags = syncFlagsFromModifiers(mods);
+                      setEditing({ ...editing, modifiers: mods, hasMilk: flags.hasMilk, hasExtraShot: flags.hasExtraShot });
+                    }}
+                    style={styles.kill}
+                  >
+                    <Text style={styles.killTxt}>Delete group</Text>
+                  </Pressable>
+                </View>
+                {group.options.map((opt, oi) => (
+                  <View key={opt.id} style={styles.optRow}>
+                    <View style={{ flex: 1.4 }}>
+                      <Field
+                        label="Option"
+                        value={opt.name}
+                        onChangeText={(v) => {
+                          const mods = parseModifiers(editing.modifiers).map((g, i) => {
+                            if (i !== gi) return g;
+                            return {
+                              ...g,
+                              options: g.options.map((o, j) => (j === oi ? { ...o, name: v } : o)),
+                            };
+                          });
+                          setEditing({ ...editing, modifiers: mods });
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 0.8 }}>
+                      <Field
+                        label={`Price (${cur})`}
+                        value={String(opt.price ?? 0)}
+                        onChangeText={(v) => {
+                          const price = parseMoneyInput(v);
+                          const mods = parseModifiers(editing.modifiers).map((g, i) => {
+                            if (i !== gi) return g;
+                            return {
+                              ...g,
+                              options: g.options.map((o, j) => (j === oi ? { ...o, price } : o)),
+                            };
+                          });
+                          setEditing({ ...editing, modifiers: mods });
+                        }}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        const mods = parseModifiers(editing.modifiers).map((g, i) => {
+                          if (i !== gi) return g;
+                          return { ...g, options: g.options.filter((_, j) => j !== oi) };
+                        });
+                        setEditing({ ...editing, modifiers: mods });
+                      }}
+                      style={[styles.kill, { marginBottom: 2 }]}
+                    >
+                      <Text style={styles.killTxt}>Del</Text>
+                    </Pressable>
+                  </View>
+                ))}
+                <Btn
+                  label="+ Add option"
+                  variant="outline"
+                  onPress={() => {
+                    const mods = parseModifiers(editing.modifiers).map((g, i) => {
+                      if (i !== gi) return g;
+                      return {
+                        ...g,
+                        options: [...g.options, { id: nidShort("opt"), name: "New option", price: 0 }],
+                      };
+                    });
+                    setEditing({ ...editing, modifiers: mods });
+                  }}
+                />
+              </View>
+            ))}
+            <Btn
+              label="+ Add customisation group"
+              variant="outline"
+              onPress={() => {
+                const mods = [
+                  ...parseModifiers(editing.modifiers),
+                  { id: nidShort("grp"), name: "Options", required: false, max: 1, options: [{ id: nidShort("opt"), name: "Choice", price: 0 }] },
+                ];
+                const flags = syncFlagsFromModifiers(mods);
+                setEditing({ ...editing, modifiers: mods, hasMilk: flags.hasMilk, hasExtraShot: flags.hasExtraShot });
+              }}
+            />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <View style={{ flex: 1, minWidth: 140 }}>
                 <Btn label={busy ? "Saving…" : "Save item"} onPress={() => void saveItem()} variant="gold" disabled={busy} />
@@ -781,6 +930,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.wash },
+  preview: {
+    width: "100%",
+    height: 160,
+    borderRadius: radius,
+    borderWidth,
+    borderColor: colors.line,
+    backgroundColor: colors.wash,
+  },
+  modCard: {
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 12,
+    gap: 8,
+    backgroundColor: colors.bg,
+  },
+  optRow: { flexDirection: "row", gap: 8, alignItems: "flex-end", flexWrap: "wrap" },
   itemName: { fontWeight: "800", color: colors.ink },
   itemMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   edit: { fontSize: 11, fontWeight: "800", letterSpacing: 1, color: colors.ink, textTransform: "uppercase" },
