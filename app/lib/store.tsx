@@ -10,6 +10,7 @@ import React, {
 } from "react";
 
 import * as api from "./api";
+import { APP_ROLE } from "./appRole";
 import { cartTotals, genConfirmCode, lineUnitPrice, nid, orderCode, orderPrefixFromSlug } from "./format";
 import { demoCafe, demoCategories, demoItems, demoOrders } from "./seed";
 import type {
@@ -37,7 +38,7 @@ function errMsg(e: unknown, fallback = "Request failed"): string {
   return fallback;
 }
 
-const KEY = "cafeqr-v2";
+const KEY = `cafeqr-${APP_ROLE}-v2`;
 const DEFAULT_SLUG = "velvet-bean";
 
 interface Persist {
@@ -82,6 +83,7 @@ function mapApiCafe(c: {
   altMilkPrice?: number;
   extraShotPrice?: number;
   orderingEnabled?: boolean;
+  updatedAt?: number;
 }): CafeProfile {
   const currency = (c.currency === "INR" || c.currency === "NPR" || c.currency === "USD" ? c.currency : "USD") as CafeProfile["currency"];
   const taxRate =
@@ -116,6 +118,7 @@ function mapApiCafe(c: {
     altMilkPrice,
     extraShotPrice,
     orderingEnabled: c.orderingEnabled !== false,
+    updatedAt: typeof c.updatedAt === "number" ? c.updatedAt : undefined,
   };
 }
 

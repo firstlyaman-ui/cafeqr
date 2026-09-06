@@ -30,8 +30,8 @@ class SqliteStore {
   async createCafe(row) {
     this.db
       .prepare(
-        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.slug,
@@ -50,7 +50,8 @@ class SqliteStore {
         row.extra_shot_price ?? null,
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
-        row.ordering_enabled ?? 1
+        row.ordering_enabled ?? 1,
+        row.updated_at ?? Date.now()
       );
     return this.getCafeBySlug(row.slug);
   }
@@ -72,7 +73,8 @@ class SqliteStore {
           tax_rate = COALESCE(?, tax_rate),
           alt_milk_price = COALESCE(?, alt_milk_price),
           extra_shot_price = COALESCE(?, extra_shot_price),
-          ordering_enabled = COALESCE(?, ordering_enabled)
+          ordering_enabled = COALESCE(?, ordering_enabled),
+          updated_at = ?
          WHERE id = ?`
       )
       .run(
@@ -90,9 +92,14 @@ class SqliteStore {
         fields.alt_milk_price ?? null,
         fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
+        Date.now(),
         id
       );
     return this.db.prepare("SELECT * FROM cafes WHERE id = ?").get(id);
+  }
+
+  async touchCafe(cafeId) {
+    this.db.prepare("UPDATE cafes SET updated_at = ? WHERE id = ?").run(Date.now(), cafeId);
   }
 
   async deleteCafeCascade(cafeId) {

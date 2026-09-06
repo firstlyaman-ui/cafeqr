@@ -1,4 +1,5 @@
 import { Link } from "expo-router";
+import { openExternal } from "@/lib/appRole";
 import React from "react";
 import {
   ActivityIndicator,
@@ -101,6 +102,18 @@ export function Btn({
     </View>
   );
   if (href && !disabled) {
+    if (/^https?:\/\//i.test(href)) {
+      return (
+        <Pressable
+          onPress={() => openExternal(href)}
+          accessibilityRole="link"
+          accessibilityLabel={label}
+          style={({ pressed }) => pressed && { opacity: 0.8 }}
+        >
+          {body}
+        </Pressable>
+      );
+    }
     return (
       <Link href={href as any} asChild>
         <Pressable accessibilityRole="link" accessibilityLabel={label} style={({ pressed }) => pressed && { opacity: 0.8 }}>

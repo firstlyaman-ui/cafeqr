@@ -3,6 +3,14 @@ import { useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Banner, BrandMark, Btn, Kicker, Loading, Screen } from "@/components/ui";
+import {
+  APP_ROLE,
+  customerTableUrl,
+  isCustomerApp,
+  openExternal,
+  ownerSetupUrl,
+  staffBoardUrl,
+} from "@/lib/appRole";
 import { useStore } from "@/lib/store";
 import { colors, shadow } from "@/lib/theme";
 
@@ -34,6 +42,16 @@ export default function Landing() {
   );
 
   if (!ready) return <Loading />;
+
+  // Staff/owner builds redirect via RoleGuard; keep a tiny fallback.
+  if (!isCustomerApp()) {
+    return (
+      <Screen maxWidth={560}>
+        <Text style={styles.headline}>{APP_ROLE} app</Text>
+        <Text style={styles.lede}>Loading…</Text>
+      </Screen>
+    );
+  }
 
   const demo = cafeList.find((c) => c.slug === "velvet-bean") || cafeList[0];
   const demoHref = (`/c/${demo?.slug || "velvet-bean"}/t/04`) as any;
@@ -67,12 +85,12 @@ export default function Landing() {
           <Btn label={demoLabel} href={demoHref} variant="gold" />
         </View>
         <View style={{ flex: 1, minWidth: 200 }}>
-          <Btn label="Open owner setup" href="/owner" />
-        </View>
-        <View style={{ flex: 1, minWidth: 200 }}>
-          <Btn label="Staff board" href="/staff" variant="outline" />
+          <Btn label="Staff / Owner: open your app" onPress={() => openExternal(staffBoardUrl())} variant="outline" />
         </View>
       </View>
+      <Text style={styles.roleHint}>
+        Staff board and owner setup live on separate apps (different URLs). Guest ordering stays here.
+      </Text>
 
       <View style={styles.cafeBlock}>
         <Text style={styles.cafeHead}>DEMO CAFÉS {apiOnline ? "· API LIVE" : "· LOCAL FALLBACK"}</Text>
@@ -89,9 +107,10 @@ export default function Landing() {
               </Text>
               <Btn label="Open table 4" href={`/c/${c.slug}/t/04` as any} variant="gold" />
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <Btn label="Owner" href={`/owner?slug=${c.slug}` as any} variant="outline" />
-                <Btn label="Staff" href={`/staff?slug=${c.slug}` as any} variant="outline" />
+                <Btn label="Owner app" onPress={() => openExternal(ownerSetupUrl(c.slug))} variant="outline" />
+                <Btn label="Staff app" onPress={() => openExternal(staffBoardUrl(c.slug))} variant="outline" />
               </View>
+              <Text style={styles.extNote}>Opens {customerTableUrl(c.slug, "04").replace(/^https?:\/\//, "").split("/")[0]} sibling apps externally</Text>
             </View>
           ))}
         </View>
@@ -110,8 +129,8 @@ export default function Landing() {
       <View style={styles.note}>
         <Text style={styles.noteK}>Multi-café demo</Text>
         <Text style={styles.noteBody}>
-          Start the API on port 8787, then Expo web. Guest URLs are /c/[slug]/t/[table]. Legacy /t/[table]
-          redirects to velvet-bean. Owner and staff PIN is 1234 for both seeded cafés.
+          Guest URLs are /c/[slug]/t/[table]. Legacy /t/[table] redirects to velvet-bean. Owner and staff PIN is 1234
+          for seeded cafés — use the Staff and Owner apps (separate URLs), not this guest site.
         </Text>
       </View>
     </Screen>
@@ -129,7 +148,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   lede: { fontSize: 17, lineHeight: 26, color: colors.muted, maxWidth: 640 },
-  ctaRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 28 },
+  ctaRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 8 },
+  roleHint: { fontSize: 13, color: colors.muted, marginBottom: 28, lineHeight: 18 },
   cafeBlock: { marginBottom: 28, gap: 12 },
   cafeHead: { fontSize: 11, fontWeight: "800", letterSpacing: 1.8, color: colors.ink },
   cafeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -145,6 +165,7 @@ const styles = StyleSheet.create({
   cafeName: { fontSize: 18, fontWeight: "800", color: colors.ink },
   cafeTag: { fontSize: 14, color: colors.muted },
   cafeSlug: { fontSize: 12, fontWeight: "700", color: colors.gold, letterSpacing: 0.4 },
+  extNote: { fontSize: 11, color: colors.muted },
   steps: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 32 },
   step: {
     flexGrow: 1,

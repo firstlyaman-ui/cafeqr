@@ -1,3 +1,4 @@
+import { CUSTOMER_URL } from "./appRole";
 const DEV_DEFAULT = "http://localhost:8787";
 const PROD_DEFAULT = "https://cafeqr-api.vercel.app";
 
@@ -40,6 +41,7 @@ export type ApiCafe = {
   altMilkPrice?: number;
   extraShotPrice?: number;
   orderingEnabled?: boolean;
+  updatedAt?: number;
 };
 
 export type ApiItem = {
@@ -306,17 +308,20 @@ export function guestPath(slug: string, table: string) {
 }
 
 /** Public web origin baked into printable QR payloads. */
-export const PUBLIC_WEB_ORIGIN = "https://cafeqr-five.vercel.app";
+export const PUBLIC_WEB_ORIGIN = CUSTOMER_URL;
 
 export function tableUrlFor(slug: string, table: number | string) {
   const path = guestPath(slug, String(table));
+  // Printed / shared QR codes must always open the customer app, never staff/owner origins.
   if (typeof window !== "undefined" && window.location?.origin) {
     const origin = window.location.origin.replace(/\/$/, "");
-    // Prefer the public production host so printed codes work off-LAN / not localhost.
     if (/localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(origin)) {
       return `${PUBLIC_WEB_ORIGIN}${path}`;
     }
-    return `${origin}${path}`;
+    // If this build is already the customer app, same-origin is fine.
+    if (origin === PUBLIC_WEB_ORIGIN || /cafeqr-five\.vercel\.app$/i.test(origin)) {
+      return `${origin}${path}`;
+    }
   }
   return `${PUBLIC_WEB_ORIGIN}${path}`;
 }

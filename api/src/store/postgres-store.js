@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS cafes (
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
+  updated_at BIGINT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -87,6 +88,7 @@ function normalizeCafe(row) {
     country: row.country || "US",
     tax_name: row.tax_name || "Tax",
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    updated_at: row.updated_at === undefined || row.updated_at === null ? 0 : Number(row.updated_at),
   };
 }
 
@@ -146,6 +148,7 @@ class PostgresStore {
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS tax_rate DOUBLE PRECISION DEFAULT 0.08`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS alt_milk_price DOUBLE PRECISION`,
       `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS extra_shot_price DOUBLE PRECISION`,
+      `ALTER TABLE cafes ADD COLUMN IF NOT EXISTS updated_at BIGINT DEFAULT 0`,
       `ALTER TABLE items ADD COLUMN IF NOT EXISTS available INTEGER DEFAULT 1`,
       `ALTER TABLE items ADD COLUMN IF NOT EXISTS modifiers TEXT DEFAULT '[]'`,
       `ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirm_code TEXT DEFAULT ''`,
@@ -198,8 +201,8 @@ class PostgresStore {
 
   async createCafe(row) {
     await this.query(
-      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      `INSERT INTO cafes (slug, name, tagline, accent_color, hours, address, table_count, cash_only, currency, country, tax_name, tax_rate, alt_milk_price, extra_shot_price, owner_pin, staff_pin, ordering_enabled, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         row.slug,
         row.name,
@@ -218,6 +221,7 @@ class PostgresStore {
         row.owner_pin ?? "1234",
         row.staff_pin ?? "1234",
         row.ordering_enabled ?? 1,
+        row.updated_at ?? Date.now(),
       ]
     );
     return this.getCafeBySlug(row.slug);
@@ -239,8 +243,9 @@ class PostgresStore {
         tax_rate = COALESCE($11, tax_rate),
         alt_milk_price = COALESCE($12, alt_milk_price),
         extra_shot_price = COALESCE($13, extra_shot_price),
-        ordering_enabled = COALESCE($14, ordering_enabled)
-       WHERE id = $15`,
+        ordering_enabled = COALESCE($14, ordering_enabled),
+        updated_at = $15
+       WHERE id = $16`,
       [
         fields.name ?? null,
         fields.tagline ?? null,
@@ -256,11 +261,16 @@ class PostgresStore {
         fields.alt_milk_price ?? null,
         fields.extra_shot_price ?? null,
         fields.ordering_enabled ?? null,
+        Date.now(),
         id,
       ]
     );
     const { rows } = await this.query("SELECT * FROM cafes WHERE id = $1", [id]);
     return normalizeCafe(rows[0]);
+  }
+
+  async touchCafe(cafeId) {
+    await this.query("UPDATE cafes SET updated_at = $1 WHERE id = $2", [Date.now(), cafeId]);
   }
 
   async deleteCafeCascade(cafeId) {

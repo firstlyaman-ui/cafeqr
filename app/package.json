@@ -35,7 +35,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web",
-    "export:web": "expo export --platform web"
+    "export:web": "expo export --platform web",
+    "export:customer": "EXPO_PUBLIC_APP_ROLE=customer expo export --platform web",
+    "export:staff": "EXPO_PUBLIC_APP_ROLE=staff expo export --platform web",
+    "export:owner": "EXPO_PUBLIC_APP_ROLE=owner expo export --platform web"
   },
   "private": true
 }

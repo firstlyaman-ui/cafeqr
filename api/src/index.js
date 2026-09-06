@@ -75,6 +75,7 @@ function mapCafe(row) {
     extraShotPrice: cafeExtraShotPrice(row),
     orderingEnabled:
       row.ordering_enabled === undefined || row.ordering_enabled === null ? true : !!row.ordering_enabled,
+    updatedAt: row.updated_at === undefined || row.updated_at === null ? 0 : Number(row.updated_at),
     createdAt: row.created_at,
   };
 }
@@ -227,7 +228,7 @@ function nid(prefix) {
 function parseCorsOrigins() {
   const raw =
     process.env.CORS_ORIGINS ||
-    "https://cafeqr-five.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
+    "https://cafeqr-five.vercel.app,https://cafeqr-staff.vercel.app,https://cafeqr-owner.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
   return raw
     .split(",")
     .map((s) => s.trim())
@@ -512,7 +513,9 @@ async function createApp() {
       const sort = (await store.maxCategorySort(cafe.id)) + 1;
       const id = nid("cat");
       const cat = await store.createCategory({ id, cafe_id: cafe.id, name, sort });
+      await store.touchCafe(cafe.id);
       res.status(201).json(cat);
+      await store.touchCafe(cafe.id);
     })
   );
 
@@ -525,6 +528,7 @@ async function createApp() {
       if (!parsed.success) return fromZod(res, parsed.error);
       const updated = await store.updateCategory(req.params.id, cafe.id, parsed.data);
       if (!updated) return sendError(res, 404, "CATEGORY_NOT_FOUND", "Category not found");
+      await store.touchCafe(cafe.id);
       res.json(updated);
     })
   );
@@ -537,6 +541,7 @@ async function createApp() {
       const row = await store.getCategory(req.params.id, cafe.id);
       if (!row) return sendError(res, 404, "CATEGORY_NOT_FOUND", "Category not found");
       await store.deleteCategory(row.id, cafe.id);
+      await store.touchCafe(cafe.id);
       res.json({ ok: true });
     })
   );
@@ -575,6 +580,7 @@ async function createApp() {
         active: b.active === false ? 0 : 1,
         available,
       });
+      await store.touchCafe(cafe.id);
       res.status(201).json(mapItem(row));
     })
   );
@@ -625,6 +631,7 @@ async function createApp() {
         active: b.active !== undefined ? (b.active ? 1 : 0) : row.active,
         available,
       });
+      await store.touchCafe(cafe.id);
       res.json(mapItem(updated));
     })
   );
@@ -637,6 +644,7 @@ async function createApp() {
       const row = await store.getItem(req.params.id, cafe.id);
       if (!row) return sendError(res, 404, "ITEM_NOT_FOUND", "Item not found");
       await store.deleteItem(row.id);
+      await store.touchCafe(cafe.id);
       res.json({ ok: true });
     })
   );
@@ -786,6 +794,7 @@ async function createApp() {
       if (!cafe) return;
       try {
         await resetCafe(cafe.slug);
+        await store.touchCafe(cafe.id);
         const refreshed = await store.getCafeBySlug(cafe.slug);
         const categories = (await store.listCategories(refreshed.id)).map(mapCategory);
         const items = (await store.listItems(refreshed.id, { activeOnly: true })).map(mapItem);

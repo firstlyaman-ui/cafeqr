@@ -49,6 +49,8 @@ export interface CafeProfile {
   extraShotPrice: number;
   address: string;
   orderingEnabled: boolean;
+  /** Epoch ms; bumps on profile/menu changes for guest live refresh */
+  updatedAt?: number;
 }
 
 export interface MenuCategory {

@@ -8,6 +8,7 @@ import { Banner, Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/
 import { tableUrlFor } from "@/lib/api";
 import { isHttpUrl, money, parseIntInput, parseMoneyInput } from "@/lib/format";
 import { hapticError, hapticSuccess } from "@/lib/haptics";
+import { customerTableUrl, openExternal, staffBoardUrl } from "@/lib/appRole";
 import { emptyItem, useStore } from "@/lib/store";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import { COUNTRY_TAX_DEFAULTS, OWNER_PIN, type CountryCode, type DietaryTag, type MenuItem, type ModifierGroup } from "@/lib/types";
@@ -320,8 +321,8 @@ export default function Owner() {
             <Text style={styles.h}>Café setup</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            <Btn label="Table 4 demo" href={`/c/${slug}/t/04` as any} variant="outline" />
-            <Btn label="Staff board" href={`/staff?slug=${slug}` as any} variant="gold" />
+            <Btn label="Open guest menu" onPress={() => openExternal(customerTableUrl(slug, "04"))} variant="outline" />
+            <Btn label="Staff app" onPress={() => openExternal(staffBoardUrl(slug))} variant="gold" />
           </View>
         </View>
 

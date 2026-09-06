@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -50,6 +50,15 @@ export default function CafeTableMenu() {
       };
     }, [slug, loadCafe]),
   );
+
+  // Light live refresh so sold-out / renames appear within ~10s without manual refresh.
+  useEffect(() => {
+    if (!apiOnline) return;
+    const id = setInterval(() => {
+      void loadCafe(slug);
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [slug, apiOnline, loadCafe]);
 
   const welcomed = guest.welcomedTables.includes(`${slug}:${table}`);
   const accent = cafe.accentColor || colors.gold;

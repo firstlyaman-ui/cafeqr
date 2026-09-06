@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS cafes (
   owner_pin TEXT DEFAULT '1234',
   staff_pin TEXT DEFAULT '1234',
   ordering_enabled INTEGER DEFAULT 1,
+  updated_at INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -233,6 +234,13 @@ function migrate(adapter) {
   }
   if (cafeCols.length && !cafeCols.includes("extra_shot_price")) {
     adapter.exec("ALTER TABLE cafes ADD COLUMN extra_shot_price REAL");
+  }
+
+  if (cafeCols.length && !cafeCols.includes("updated_at")) {
+    adapter.exec("ALTER TABLE cafes ADD COLUMN updated_at INTEGER DEFAULT 0");
+    try {
+      adapter.exec("UPDATE cafes SET updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE updated_at IS NULL OR updated_at = 0");
+    } catch (_) {}
   }
 
   const itemCols = columnNames(adapter, "items");

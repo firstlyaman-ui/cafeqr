@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
+import { customerTableUrl, openExternal, ownerSetupUrl } from "@/lib/appRole";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
 import { diningLabel } from "@/lib/share";
@@ -101,7 +102,8 @@ export default function Staff() {
     useCallback(() => {
       void refreshCafeList();
       void loadCafe(String(params.slug || picked || cafeSlug || "velvet-bean"));
-    }, [refreshCafeList, loadCafe, params.slug, picked, cafeSlug]),
+      if (staffOk) void refreshOrders();
+    }, [refreshCafeList, loadCafe, params.slug, picked, cafeSlug, staffOk, refreshOrders]),
   );
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function Staff() {
     void refreshOrders();
     const id = setInterval(() => {
       void refreshOrders();
-    }, 4000);
+    }, 2000);
     return () => clearInterval(id);
   }, [staffOk, apiOnline, cafeSlug, refreshOrders]);
 
@@ -156,8 +158,8 @@ export default function Staff() {
           <Text style={styles.sub}>Open tickets · cash due {money(due, cur)}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <Btn label="Owner" href={`/owner?slug=${slug}` as any} variant="outline" />
-          <Btn label="Table 4" href={`/c/${slug}/t/04` as any} variant="gold" />
+          <Btn label="Open guest menu" onPress={() => openExternal(customerTableUrl(slug, "04"))} variant="gold" />
+          <Btn label="Owner app" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
           <Btn label="QR sheet" href="/staff/qr" variant="outline" />
         </View>
       </View>

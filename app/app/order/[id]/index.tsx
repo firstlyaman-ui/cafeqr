@@ -22,23 +22,33 @@ export default function OrderStatusScreen() {
 
   useEffect(() => {
     if (!ready || !id || !apiOnline) return;
-    const code = (typeof confirm === "string" && confirm) || order?.confirmCode || "";
-    if (!code && order) return; // local order without needing refresh
     let cancelled = false;
-    setLoadingRemote(true);
-    void (async () => {
+    let stop = false;
+    const tick = async (showLoading: boolean) => {
+      if (stop || cancelled) return;
+      const code =
+        (typeof confirm === "string" && confirm) ||
+        orders.find((o) => o.id === id)?.confirmCode ||
+        "";
+      if (showLoading) setLoadingRemote(true);
       const r = await fetchGuestOrder(String(id), code || undefined);
       if (cancelled) return;
-      setLoadingRemote(false);
+      if (showLoading) setLoadingRemote(false);
       if (!r.ok) {
         if (r.status === 401) setAuthErr("This order needs a confirm code. Open the link from your receipt.");
-        else if (!order) setAuthErr(r.error);
+        else if (!orders.find((o) => o.id === id)) setAuthErr(r.error);
       } else {
         setAuthErr(null);
+        if (r.order.status === "paid") stop = true;
       }
-    })();
+    };
+    void tick(true);
+    const timer = setInterval(() => {
+      void tick(false);
+    }, 2000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [ready, id, confirm, apiOnline, fetchGuestOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
