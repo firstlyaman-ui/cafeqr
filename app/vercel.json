@@ -3,5 +3,12 @@
   "outputDirectory": "dist",
   "framework": null,
   "cleanUrls": true,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/c/:slug/t/:table", "destination": "/c/[slug]/t/[table].html" },
+    { "source": "/order/:id/invoice", "destination": "/order/[id]/invoice.html" },
+    { "source": "/order/:id", "destination": "/order/[id].html" },
+    { "source": "/confirmation/:id", "destination": "/confirmation/[id].html" },
+    { "source": "/t/:table", "destination": "/t/[table].html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
