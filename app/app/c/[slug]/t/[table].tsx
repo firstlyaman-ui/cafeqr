@@ -96,8 +96,19 @@ export default function CafeTableMenu() {
   };
 
   const orderingOn = cafe.orderingEnabled !== false;
+  const showWelcome = welcomeOn && !welcomed;
 
   if (!ready || loadingCafe || cafeSlug !== slug) return <Loading />;
+
+  if (showWelcome) {
+    return (
+      <WelcomeModal
+        visible
+        table={`${slug}:${table}`}
+        onDone={() => setWelcomeOn(false)}
+      />
+    );
+  }
 
   const n = Number(table);
   if (!n || n < 1 || n > cafe.tableCount) {
@@ -121,13 +132,6 @@ export default function CafeTableMenu() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.strip}>
-        <Text style={styles.stripTxt}>●  CASH ONLY PAYMENT  ●  PREP TIMERS ON ORDER</Text>
-        <Text style={styles.stripLink}>
-          {tableLabel(table)}  ·  {cafe.cashOnly ? "CASH EXCLUSIVE" : "TABLE ORDER"}
-        </Text>
-      </View>
-
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: totals.count ? 96 : 32 }}>
         <View style={styles.header}>
           <View style={styles.logo}>
@@ -197,14 +201,6 @@ export default function CafeTableMenu() {
           />
         </View>
 
-        <View style={styles.banner}>
-          <View style={[styles.pop, { backgroundColor: accent }]}>
-            <Text style={styles.popTxt}>POPULAR</Text>
-          </View>
-          <Text style={styles.bannerTitle}>{cafe.name.toUpperCase()} MENU</Text>
-          <Text style={styles.bannerSub}>{cafe.tagline}</Text>
-        </View>
-
         {!visible.length ? (
           <Empty title="Nothing here" body="Try another category or dietary filter — or ask staff to update the menu." />
         ) : null}
@@ -248,11 +244,6 @@ export default function CafeTableMenu() {
         }}
       />
 
-      <WelcomeModal
-        visible={welcomeOn && !welcomed}
-        table={`${slug}:${table}`}
-        onDone={() => setWelcomeOn(false)}
-      />
       <OptionsSheet
         item={sheet}
         accent={accent}
@@ -289,7 +280,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 10,
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderColor: colors.ink,

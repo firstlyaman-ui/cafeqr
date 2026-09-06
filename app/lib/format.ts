@@ -212,7 +212,7 @@ export function optionBlurb(
 }
 
 export function statusLabel(s: OrderStatus): string {
-  return { new: "New", preparing: "Preparing", ready: "Ready", paid: "Paid" }[s];
+  return { new: "New", preparing: "Preparing", ready: "Ready", paid: "Paid", cancelled: "Cancelled" }[s];
 }
 
 export function nextStatus(s: OrderStatus): OrderStatus | null {
@@ -225,7 +225,7 @@ export function nextStatus(s: OrderStatus): OrderStatus | null {
 export function nextStatusLabel(s: OrderStatus, confirmCode?: string): string | null {
   if (s === "new") return confirmCode ? `Confirm ${confirmCode}` : "Confirm order";
   if (s === "preparing") return "Mark ready";
-  if (s === "ready") return "Mark paid";
+  if (s === "ready") return "Cash received · Approve";
   return null;
 }
 

@@ -22,7 +22,7 @@ export type DietaryTag = "popular" | "veg" | "vegan" | "gf";
 
 export type MilkOption = "whole" | "oat" | "almond" | "skim";
 
-export type OrderStatus = "new" | "preparing" | "ready" | "paid";
+export type OrderStatus = "new" | "preparing" | "ready" | "paid" | "cancelled";
 
 export type DietaryFilter = "all" | "veg" | "vegan" | "gf";
 

@@ -4,21 +4,28 @@ import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import { qrDataUriAsync } from "@/lib/qr";
 import { colors } from "@/lib/theme";
 
+/** Restaurant-style table-tent QR card for print sheets. */
 export function QrImage({
   value,
-  size = 160,
+  size = 140,
   color = "#111111",
   caption,
   cafeName,
+  accentColor,
+  cashOnly = true,
 }: {
   value: string;
   size?: number;
   color?: string;
   caption?: string;
   cafeName?: string;
+  accentColor?: string;
+  cashOnly?: boolean;
 }) {
   const [uri, setUri] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const accent = accentColor || colors.gold;
+  const shortUrl = value.replace(/^https?:\/\//, "");
 
   useEffect(() => {
     let cancelled = false;
@@ -37,11 +44,15 @@ export function QrImage({
   }, [value, color, size]);
 
   return (
-    <View style={styles.box} {...({ className: "qr-sheet" } as any)}>
+    <View style={[styles.card, { borderColor: colors.ink }]} {...({ className: "qr-sheet" } as any)}>
+      <View style={[styles.bar, { backgroundColor: accent }]} />
+      {cafeName ? <Text style={styles.cafe}>{cafeName.toUpperCase()}</Text> : null}
+      <Text style={styles.scan}>Scan to order</Text>
+      {caption ? <Text style={styles.table}>{caption}</Text> : null}
       {uri ? (
         <Image
           source={{ uri }}
-          style={{ width: size, height: size, backgroundColor: "#fff" }}
+          style={{ width: size, height: size, backgroundColor: "#fff", marginVertical: 8 }}
           accessibilityLabel={`QR code for ${caption || value}`}
           {...({ className: "qr-img", "data-qr": "1" } as any)}
         />
@@ -50,10 +61,13 @@ export function QrImage({
           <Text style={styles.phText}>{err ? "QR error" : "…"}</Text>
         </View>
       )}
-      {caption ? <Text style={styles.cap}>{caption}</Text> : null}
-      {cafeName ? <Text style={styles.cafe}>{cafeName}</Text> : null}
-      <Text style={styles.url} numberOfLines={3}>
-        {value}
+      {cashOnly ? (
+        <View style={[styles.chip, { backgroundColor: accent }]}>
+          <Text style={styles.chipTxt}>CASH ONLY</Text>
+        </View>
+      ) : null}
+      <Text style={styles.url} numberOfLines={2}>
+        {shortUrl}
       </Text>
     </View>
   );
@@ -85,12 +99,38 @@ export async function printQrSheet() {
 }
 
 const styles = StyleSheet.create({
-  box: {
+  card: {
     alignItems: "center",
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.line,
+    paddingBottom: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1.5,
     backgroundColor: "#fff",
+    width: "100%",
+    overflow: "hidden",
+  },
+  bar: { height: 8, width: "100%", marginBottom: 10, alignSelf: "stretch" },
+  cafe: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    color: colors.ink,
+    textAlign: "center",
+  },
+  scan: {
+    marginTop: 4,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+    color: colors.muted,
+  },
+  table: {
+    marginTop: 6,
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: colors.ink,
   },
   placeholder: {
     alignItems: "center",
@@ -98,16 +138,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f3f3",
     borderWidth: 1,
     borderColor: colors.line,
+    marginVertical: 8,
   },
   phText: { color: colors.muted, fontSize: 12 },
-  cap: {
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
-    color: colors.ink,
+  chip: {
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.ink,
   },
-  cafe: { marginTop: 4, fontSize: 11, color: colors.muted, textAlign: "center" },
-  url: { marginTop: 4, fontSize: 10, color: colors.muted, textAlign: "center" },
+  chipTxt: { fontSize: 9, fontWeight: "800", letterSpacing: 1.2, color: colors.ink },
+  url: { marginTop: 6, fontSize: 9, color: colors.muted, textAlign: "center", paddingHorizontal: 4 },
 });

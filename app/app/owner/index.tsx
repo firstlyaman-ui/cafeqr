@@ -861,8 +861,6 @@ export default function Owner() {
       </View>
 
       <View style={styles.sheet} {...({ className: "qr-print-sheet" } as any)}>
-        <Text style={styles.sheetTitle}>{cafe.name}</Text>
-        <Text style={styles.sheetSub}>Scan the code on your table to order · cash at the counter</Text>
         <View style={styles.qrGrid} {...({ className: "qr-print-grid" } as any)}>
           {Array.from({ length: count }, (_, i) => {
             const n = i + 1;
@@ -873,7 +871,9 @@ export default function Owner() {
                   value={url}
                   caption={`TABLE ${String(n).padStart(2, "0")}`}
                   cafeName={cafe.name}
-                  size={160}
+                  accentColor={cafe.accentColor}
+                  cashOnly={cafe.cashOnly !== false}
+                  size={132}
                   color={colors.ink}
                 />
               </View>
@@ -958,15 +958,10 @@ const styles = StyleSheet.create({
   sheetSub: { textAlign: "center", color: colors.muted, marginTop: 6, marginBottom: 16 },
   qrGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   qrCard: {
-    width: 200,
-    borderWidth,
-    borderColor: colors.line,
-    borderRadius: radius,
-    backgroundColor: colors.white,
-    padding: 12,
-    alignItems: "center",
-    gap: 8,
-    ...shadow.card,
+    width: 210,
+    backgroundColor: "transparent",
+    padding: 0,
+    alignItems: "stretch",
   },
   qr: { width: 160, height: 160 },
   qrTable: { fontWeight: "800", letterSpacing: 1.2, color: colors.ink },

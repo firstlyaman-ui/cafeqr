@@ -1,11 +1,13 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Btn } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { colors, shadow, type } from "@/lib/theme";
 
+/** Full-screen welcome / login — shown before the menu on first visit to a table. */
 export function WelcomeModal({
   visible,
   table,
@@ -19,6 +21,8 @@ export function WelcomeModal({
   const [phone, setPhone] = useState("");
   const accent = cafe.accentColor || colors.gold;
 
+  if (!visible) return null;
+
   const finish = (withPhone: boolean) => {
     if (withPhone && phone.trim()) setGuest({ phone: phone.trim() });
     markWelcomed(table);
@@ -26,8 +30,9 @@ export function WelcomeModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => finish(false)}>
-      <View style={styles.backdrop}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <View style={[styles.accent, { backgroundColor: accent }]} />
+      <View style={styles.inner}>
         <View style={[styles.card, shadow.hard]}>
           <View style={[styles.icon, { backgroundColor: colors.ink }]}>
             <View style={[styles.head, { backgroundColor: accent }]} />
@@ -52,12 +57,7 @@ export function WelcomeModal({
             />
           </View>
 
-          <Btn
-            label="Login for rewards  →"
-            variant="gray"
-            accent={accent}
-            onPress={() => finish(true)}
-          />
+          <Btn label="Login for rewards  →" variant="gray" accent={accent} onPress={() => finish(true)} />
 
           <View style={styles.orRow}>
             <View style={styles.dash} />
@@ -65,7 +65,7 @@ export function WelcomeModal({
             <View style={styles.dash} />
           </View>
 
-          <Btn label="Continue as guest" variant="outline" onPress={() => finish(false)} />
+          <Btn label="Continue as Guest" variant="outline" onPress={() => finish(false)} />
 
           <Pressable
             onPress={() => {
@@ -80,14 +80,15 @@ export function WelcomeModal({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  safe: { flex: 1, backgroundColor: colors.bg },
+  accent: { height: 6, width: "100%" },
+  inner: {
     flex: 1,
-    backgroundColor: "rgba(245,244,240,0.78)",
     alignItems: "center",
     justifyContent: "center",
     padding: 20,

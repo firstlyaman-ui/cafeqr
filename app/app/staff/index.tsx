@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PinGate } from "@/components/PinGate";
-import { customerTableUrl, openExternal, ownerSetupUrl } from "@/lib/appRole";
+import { openExternal, ownerSetupUrl } from "@/lib/appRole";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
 import { diningLabel } from "@/lib/share";
@@ -12,7 +12,8 @@ import { hapticMedium, hapticSuccess } from "@/lib/haptics";
 import { borderWidth, colors, radius, shadow } from "@/lib/theme";
 import { STAFF_PIN, type Order, type OrderStatus } from "@/lib/types";
 
-const FILTERS: (OrderStatus | "all")[] = ["all", "new", "preparing", "ready", "paid"];
+const FILTERS: (OrderStatus | "all")[] = ["all", "new", "preparing", "ready", "paid", "cancelled"];
+const OPEN: OrderStatus[] = ["new", "preparing", "ready"];
 
 function Ticket({
   order,
@@ -32,7 +33,7 @@ function Ticket({
     <View style={styles.ticket}>
       <View style={styles.ticketTop}>
         <Text style={styles.tid}>{order.id}</Text>
-        <View style={[styles.st, order.status === "ready" && { backgroundColor: colors.ready }, order.status === "paid" && { backgroundColor: colors.muted }]}>
+        <View style={[styles.st, order.status === "ready" && { backgroundColor: colors.ready }, (order.status === "paid" || order.status === "cancelled") && { backgroundColor: colors.muted }]}>
           <Text style={styles.stTxt}>{statusLabel(order.status).toUpperCase()}</Text>
         </View>
       </View>
@@ -63,9 +64,9 @@ function Ticket({
           variant={order.status === "ready" ? "gold" : "dark"}
         />
       ) : null}
-      {order.status === "new" ? (
+      {OPEN.includes(order.status) ? (
         <Btn
-          label="Reject"
+          label="Cancel"
           variant="outline"
           onPress={() => {
             void hapticMedium();
@@ -128,7 +129,7 @@ export default function Staff() {
   }, [orders, filter]);
 
   const cur = cafe.currency || "USD";
-  const due = orders.filter((o) => o.status !== "paid").reduce((n, o) => n + o.total, 0);
+  const due = orders.filter((o) => o.status !== "paid" && o.status !== "cancelled").reduce((n, o) => n + o.total, 0);
   const slug = cafe.slug || cafeSlug || picked;
 
   if (!ready) return <Loading />;
@@ -155,12 +156,11 @@ export default function Staff() {
             {cafe.name} · {apiOnline ? "LIVE" : "LOCAL"}
           </Text>
           <Text style={styles.h}>STAFF BOARD</Text>
-          <Text style={styles.sub}>Open tickets · cash due {money(due, cur)}</Text>
+          <Text style={styles.sub}>Cash due {money(due, cur)}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <Btn label="Open guest menu" onPress={() => openExternal(customerTableUrl(slug, "04"))} variant="gold" />
-          <Btn label="Owner app" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
-          <Btn label="QR sheet" href="/staff/qr" variant="outline" />
+          <Btn label="QR sheet" href="/staff/qr" variant="gold" />
+          <Btn label="Owner" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
         </View>
       </View>
 
@@ -186,8 +186,8 @@ export default function Staff() {
       </View>
 
       <View style={styles.board}>
-        {(["new", "preparing", "ready", "paid"] as OrderStatus[])
-          .filter((col) => filter === "all" || filter === col)
+        {(["new", "preparing", "ready", "paid", "cancelled"] as OrderStatus[])
+          .filter((col) => (filter === "all" ? col !== "cancelled" : filter === col))
           .map((col) => {
             const colOrders = orders.filter((o) => o.status === col);
             return (

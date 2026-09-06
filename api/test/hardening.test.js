@@ -142,3 +142,72 @@ describe("fail-closed getStore", () => {
     }
   });
 });
+
+
+describe("mapOrder", () => {
+  const { mapOrder } = require("../src/index");
+
+  it("maps snake_case DB row to camelCase client order JSON", () => {
+    const row = {
+      id: "VB-1001",
+      cafe_id: "c1",
+      table_no: "04",
+      guest_name: "Ada",
+      phone: "555",
+      notes: "extra hot",
+      items: JSON.stringify([{ itemId: "i1", name: "Latte", qty: 1, unitPrice: 4.5 }]),
+      subtotal: 4.5,
+      tax: 0.36,
+      tax_name: "Tax",
+      total: 4.86,
+      status: "new",
+      estimated_wait: 8,
+      confirm_code: "4321",
+      dining_option: "dine_in",
+      created_at: 1700000000000,
+      updated_at: 1700000001000,
+    };
+    const o = mapOrder(row);
+    assert.equal(o.id, "VB-1001");
+    assert.equal(o.table, "04");
+    assert.equal(o.guestName, "Ada");
+    assert.equal(o.phone, "555");
+    assert.equal(o.notes, "extra hot");
+    assert.equal(o.items.length, 1);
+    assert.equal(o.items[0].name, "Latte");
+    assert.equal(o.subtotal, 4.5);
+    assert.equal(o.tax, 0.36);
+    assert.equal(o.taxName, "Tax");
+    assert.equal(o.total, 4.86);
+    assert.equal(o.status, "new");
+    assert.equal(o.estimatedWait, 8);
+    assert.equal(o.confirmCode, "4321");
+    assert.equal(o.diningOption, "dine_in");
+    assert.equal(o.createdAt, 1700000000000);
+    assert.equal(o.payCash, true);
+  });
+
+  it("parses already-array items and takeaway dining", () => {
+    const o = mapOrder({
+      id: "X-1",
+      table_no: "01",
+      guest_name: "Guest",
+      items: [{ itemId: "a", name: "Tea", qty: 2, unitPrice: 2 }],
+      subtotal: 4,
+      tax: 0,
+      total: 4,
+      status: "preparing",
+      estimated_wait: 5,
+      confirm_code: "1111",
+      dining_option: "takeaway",
+      created_at: 1,
+      updated_at: 2,
+    });
+    assert.equal(o.items[0].qty, 2);
+    assert.equal(o.diningOption, "takeaway");
+  });
+
+  it("returns null for missing row", () => {
+    assert.equal(mapOrder(null), null);
+  });
+});

@@ -107,6 +107,38 @@ function mapItem(row) {
   };
 }
 
+function mapOrder(row) {
+  if (!row) return null;
+  let items = [];
+  try {
+    if (typeof row.items === "string") items = JSON.parse(row.items || "[]");
+    else if (Array.isArray(row.items)) items = row.items;
+  } catch (_) {
+    items = [];
+  }
+  if (!Array.isArray(items)) items = [];
+  const dining = String(row.dining_option || row.diningOption || "dine_in").toLowerCase();
+  return {
+    id: row.id,
+    table: String(row.table_no || row.table || ""),
+    guestName: row.guest_name || row.guestName || "Guest",
+    phone: row.phone || "",
+    notes: row.notes || "",
+    items,
+    subtotal: Number(row.subtotal) || 0,
+    tax: Number(row.tax) || 0,
+    taxName: row.tax_name || row.taxName || "",
+    total: Number(row.total) || 0,
+    status: row.status || "new",
+    createdAt: Number(row.created_at ?? row.createdAt) || 0,
+    updatedAt: Number(row.updated_at ?? row.updatedAt) || 0,
+    estimatedWait: Number(row.estimated_wait ?? row.estimatedWait) || 0,
+    payCash: true,
+    confirmCode: row.confirm_code || row.confirmCode || "",
+    diningOption: dining === "takeaway" || dining === "take_away" ? "takeaway" : "dine_in",
+  };
+}
+
 function resolveItemModifiersAndFlags(b, row, cafe) {
   const currency = cafe?.currency;
   let modifiers = row ? parseModifiers(row.modifiers) : [];
@@ -745,13 +777,36 @@ async function createApp() {
   app.patch(
     "/cafes/:slug/orders/:id",
     wrap(async (req, res) => {
-      const cafe = await requireStaff(store, req, res, req.params.slug);
-      if (!cafe) return;
+      const cafe = await store.getCafeBySlug(req.params.slug);
+      if (!cafe) return sendError(res, 404, "CAFE_NOT_FOUND", "Cafe not found");
       const row = await store.getOrder(req.params.id, cafe.id);
       if (!row) return sendError(res, 404, "ORDER_NOT_FOUND", "Order not found");
       const parsed = patchOrderSchema.safeParse(req.body || {});
       if (!parsed.success) return fromZod(res, parsed.error);
-      const updated = await store.updateOrderStatus(row.id, cafe.id, parsed.data.status, Date.now());
+      const next = parsed.data.status;
+      const staffPin = req.header("X-Staff-Pin") || "";
+      const confirm = String(
+        parsed.data.confirm || parsed.data.confirmCode || parsed.data.confirm_code || req.query.confirm || ""
+      ).trim();
+      const okStaff = staffPin && safeEqualStr(staffPin, cafe.staff_pin);
+      const okConfirm = confirm && safeEqualStr(confirm, row.confirm_code || "");
+      const open = !["paid", "cancelled"].includes(String(row.status || ""));
+
+      if (next === "cancelled") {
+        if (okStaff && open) {
+          /* staff cancel/reject any open order */
+        } else if (okConfirm && (row.status === "new" || row.status === "preparing")) {
+          /* guest cancel with confirm code */
+        } else if (!okStaff && !okConfirm) {
+          return sendError(res, 401, "ORDER_AUTH_REQUIRED", "Provide confirm code or X-Staff-Pin");
+        } else {
+          return sendError(res, 403, "CANCEL_NOT_ALLOWED", "Order cannot be cancelled in its current status");
+        }
+      } else if (!okStaff) {
+        return sendError(res, 401, "INVALID_STAFF_PIN", "Invalid staff PIN");
+      }
+
+      const updated = await store.updateOrderStatus(row.id, cafe.id, next, Date.now());
       res.json(mapOrder(updated));
     })
   );
@@ -835,4 +890,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp };
+module.exports = { createApp, mapOrder };

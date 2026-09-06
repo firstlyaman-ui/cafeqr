@@ -211,6 +211,7 @@ interface Store extends Persist {
   setOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   fetchGuestOrder: (id: string, confirm?: string) => Promise<{ ok: true; order: Order } | { ok: false; error: string; status?: number }>;
   rejectOrder: (id: string) => Promise<void>;
+  cancelGuestOrder: (id: string, confirm?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   verifyOwnerPin: (pin: string) => Promise<boolean>;
   verifyStaffPin: (pin: string) => Promise<boolean>;
 }
@@ -863,14 +864,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const rejectOrder = useCallback(async (id: string) => {
-    patch((s) => ({ ...s, orders: s.orders.filter((o) => o.id !== id) }));
+    const prev = stateRef.current.orders.find((o) => o.id === id);
+    patch((s) => ({
+      ...s,
+      orders: s.orders.map((o) => (o.id === id ? { ...o, status: "cancelled" as OrderStatus } : o)),
+    }));
     if (apiOnlineRef.current) {
       try {
-        await api.deleteOrder(stateRef.current.cafeSlug, id, staffPinRef.current);
+        await api.cancelOrderApi(stateRef.current.cafeSlug, id, { staffPin: staffPinRef.current });
       } catch (e) {
         console.warn(e);
+        if (prev) {
+          patch((s) => ({
+            ...s,
+            orders: s.orders.map((o) => (o.id === id ? { ...o, status: prev.status } : o)),
+          }));
+        }
       }
     }
+  }, [patch]);
+
+  const cancelGuestOrder = useCallback(async (id: string, confirm?: string) => {
+    const prev = stateRef.current.orders.find((o) => o.id === id);
+    const code = confirm || prev?.confirmCode || "";
+    if (prev && prev.status !== "new" && prev.status !== "preparing") {
+      return { ok: false as const, error: "Only new or preparing orders can be cancelled" };
+    }
+    patch((s) => ({
+      ...s,
+      orders: s.orders.map((o) => (o.id === id ? { ...o, status: "cancelled" as OrderStatus } : o)),
+    }));
+    if (apiOnlineRef.current) {
+      try {
+        await api.cancelOrderApi(stateRef.current.cafeSlug, id, { confirm: code || undefined });
+        return { ok: true as const };
+      } catch (e: any) {
+        if (prev) {
+          patch((s) => ({
+            ...s,
+            orders: s.orders.map((o) => (o.id === id ? { ...o, status: prev.status } : o)),
+          }));
+        }
+        return { ok: false as const, error: errMsg(e, "Could not cancel order") };
+      }
+    }
+    return { ok: true as const };
   }, [patch]);
 
   const verifyOwnerPin = useCallback(async (pin: string) => {
@@ -933,6 +971,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrderStatus,
       fetchGuestOrder,
       rejectOrder,
+      cancelGuestOrder,
       verifyOwnerPin,
       verifyStaffPin,
     }),
@@ -965,6 +1004,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrderStatus,
       fetchGuestOrder,
       rejectOrder,
+      cancelGuestOrder,
       verifyOwnerPin,
       verifyStaffPin,
     ],

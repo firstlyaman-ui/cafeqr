@@ -134,7 +134,10 @@ const placeOrderSchema = z.object({
 });
 
 const patchOrderSchema = z.object({
-  status: z.enum(["new", "preparing", "ready", "paid"]),
+  status: z.enum(["new", "preparing", "ready", "paid", "cancelled"]),
+  confirm: z.string().optional(),
+  confirmCode: z.string().optional(),
+  confirm_code: z.string().optional(),
 });
 
 const pinBodySchema = z.object({

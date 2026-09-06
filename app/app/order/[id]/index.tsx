@@ -14,10 +14,12 @@ const STEPS: OrderStatus[] = ["new", "preparing", "ready", "paid"];
 
 export default function OrderStatusScreen() {
   const { id, confirm } = useLocalSearchParams<{ id: string; confirm?: string }>();
-  const { orders, cafe, ready, fetchGuestOrder, apiOnline } = useStore();
+  const { orders, cafe, ready, fetchGuestOrder, apiOnline, cancelGuestOrder } = useStore();
   const cur = cafe.currency || "USD";
   const [authErr, setAuthErr] = useState<string | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const order = orders.find((o) => o.id === id);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function OrderStatusScreen() {
         else if (!orders.find((o) => o.id === id)) setAuthErr(r.error);
       } else {
         setAuthErr(null);
-        if (r.order.status === "paid") stop = true;
+        if (r.order.status === "paid" || r.order.status === "cancelled") stop = true;
       }
     };
     void tick(true);
@@ -72,7 +74,7 @@ export default function OrderStatusScreen() {
   return (
     <Screen maxWidth={560}>
       <Text style={styles.k}>Ticket {order.id}</Text>
-      <Text style={styles.h}>WE HAVE YOUR ORDER</Text>
+      <Text style={styles.h}>{order.status === "cancelled" ? "ORDER CANCELLED" : "WE HAVE YOUR ORDER"}</Text>
       <Text style={styles.sub}>
         {tableLabel(order.table)} · {diningLabel(order.diningOption)} · {order.guestName}. Status:{" "}
         {statusLabel(order.status)}.
@@ -86,6 +88,14 @@ export default function OrderStatusScreen() {
         </View>
       ) : null}
 
+      {order.status === "cancelled" ? (
+        <View style={[styles.card, { backgroundColor: "#F8E8E8" }]}>
+          <Text style={styles.cardK}>Cancelled</Text>
+          <Text style={styles.pay}>This order was cancelled. Ask staff if you need a new ticket.</Text>
+        </View>
+      ) : null}
+
+      {order.status !== "cancelled" ? (
       <View style={styles.track}>
         {STEPS.map((s, i) => (
           <View key={s} style={[styles.step, i <= idx && { backgroundColor: colors.ink }]}>
@@ -93,7 +103,10 @@ export default function OrderStatusScreen() {
           </View>
         ))}
       </View>
+      ) : null}
 
+      {order.status !== "cancelled" ? (
+      <>
       <View style={styles.card}>
         <Text style={styles.cardK}>Pay at the counter</Text>
         <Text style={styles.big}>{money(order.total, cur)}</Text>
@@ -144,6 +157,24 @@ export default function OrderStatusScreen() {
       </View>
 
       <View style={{ gap: 10 }}>
+        {(order.status === "new" || order.status === "preparing") ? (
+          <Btn
+            label={cancelBusy ? "Cancelling…" : "Cancel order"}
+            variant="outline"
+            disabled={cancelBusy}
+            onPress={() => {
+              void (async () => {
+                setCancelBusy(true);
+                setCancelErr(null);
+                void hapticMedium();
+                const r = await cancelGuestOrder(order.id, order.confirmCode);
+                setCancelBusy(false);
+                if (!r.ok) setCancelErr(r.error);
+              })();
+            }}
+          />
+        ) : null}
+        {cancelErr ? <Text style={{ color: "#B00020", fontWeight: "700" }}>{cancelErr}</Text> : null}
         <Btn
           label="Share on WhatsApp"
           onPress={() => {
@@ -153,6 +184,10 @@ export default function OrderStatusScreen() {
           variant="gold"
         />
         <Btn label="Print receipt" href={`/order/${order.id}/invoice?confirm=${order.confirmCode || ""}` as any} variant="outline" />
+      </View>
+      </>
+      ) : null}
+      <View style={{ gap: 10, marginTop: 4 }}>
         <Btn label="Back to menu" href={`/c/${cafe.slug || "velvet-bean"}/t/${order.table}` as any} variant="outline" />
       </View>
     </Screen>

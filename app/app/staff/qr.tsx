@@ -29,8 +29,7 @@ export default function StaffQr() {
         <Text style={[type.kicker, { color: colors.muted }]}>Print and stick</Text>
         <Text style={[type.title, { marginTop: 8 }]}>Table QR sheet</Text>
         <Text style={[type.body, { color: colors.muted, marginTop: 8 }]}>
-          {cafe.name} · {cafe.tableCount} tables · paths /c/{slug}/t/NN. Tape one per seat. Guests scan and order. On
-          web, use print — chrome hides and QRs fit one page.
+          {cafe.tableCount} table tent cards · /c/{slug}/t/NN · Print and place one per table.
         </Text>
         <View style={{ flexDirection: "row", gap: 10, marginTop: 16, marginBottom: 20, flexWrap: "wrap" }}>
           <Btn label="Print sheet" onPress={() => void printQrSheet()} />
@@ -40,7 +39,14 @@ export default function StaffQr() {
       <View style={styles.grid} {...({ className: "qr-print-grid qr-print-sheet" } as any)}>
         {tables.map((t) => (
           <View key={t} style={styles.cell} {...({ className: "qr-print-cell" } as any)}>
-            <QrImage value={tableUrlFor(slug, t)} caption={tableLabel(t)} cafeName={cafe.name} size={140} />
+            <QrImage
+              value={tableUrlFor(slug, t)}
+              caption={tableLabel(t)}
+              cafeName={cafe.name}
+              accentColor={cafe.accentColor}
+              cashOnly={cafe.cashOnly !== false}
+              size={132}
+            />
           </View>
         ))}
       </View>
@@ -50,5 +56,5 @@ export default function StaffQr() {
 
 const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
-  cell: { width: 200, alignItems: "center", marginBottom: 8 },
+  cell: { width: 210, alignItems: "stretch", marginBottom: 8 },
 });

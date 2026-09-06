@@ -284,6 +284,19 @@ export function patchOrder(slug: string, id: string, status: string, staffPin: s
   });
 }
 
+/** Guest cancel (or staff) — status cancelled. Guest must pass confirm code. */
+export function cancelOrderApi(
+  slug: string,
+  id: string,
+  opts: { confirm?: string; staffPin?: string } = {},
+) {
+  return req<any>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "cancelled", confirm: opts.confirm || undefined }),
+    staffPin: opts.staffPin,
+  });
+}
+
 export function deleteOrder(slug: string, id: string, staffPin: string) {
   return req<{ ok: boolean }>(`/cafes/${encodeURIComponent(slug)}/orders/${encodeURIComponent(id)}`, {
     method: "DELETE",
