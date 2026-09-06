@@ -287,7 +287,7 @@ function nid(prefix) {
 function parseCorsOrigins() {
   const raw =
     process.env.CORS_ORIGINS ||
-    "https://cafeqr-five.vercel.app,https://cafeqr-staff.vercel.app,https://cafeqr-owner.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
+    "https://cafeqred.vercel.app,https://cafeqr-five.vercel.app,https://cafeqr-staff.vercel.app,https://cafeqr-owner.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
   return raw
     .split(",")
     .map((s) => s.trim())

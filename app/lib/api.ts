@@ -361,7 +361,7 @@ export function tableUrlFor(slug: string, table: number | string) {
       return `${PUBLIC_WEB_ORIGIN}${path}`;
     }
     // If this build is already the customer app, same-origin is fine.
-    if (origin === PUBLIC_WEB_ORIGIN || /cafeqr-five\.vercel\.app$/i.test(origin)) {
+    if (origin === PUBLIC_WEB_ORIGIN || /cafeqred\.vercel\.app$/i.test(origin) || /cafeqr-five\.vercel\.app$/i.test(origin)) {
       return `${origin}${path}`;
     }
   }

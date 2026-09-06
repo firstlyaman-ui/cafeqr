@@ -21,7 +21,7 @@ export const APP_ROLE: AppRole = normalizeRole(
 
 export const CUSTOMER_URL = (
   (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_CUSTOMER_URL : undefined) ||
-  "https://cafeqr-five.vercel.app"
+  "https://cafeqred.vercel.app"
 ).replace(/\/$/, "");
 
 export const STAFF_URL = (
