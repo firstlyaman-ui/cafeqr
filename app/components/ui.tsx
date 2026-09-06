@@ -14,6 +14,12 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { borderWidth, colors, radius, shadow, type } from "@/lib/theme";
 
@@ -62,6 +68,17 @@ export function Kicker({ children, color = colors.muted }: { children: React.Rea
   return <Text style={[type.kicker, { color }]}>{children}</Text>;
 }
 
+function usePressScale(enabled: boolean) {
+  const reduce = useReducedMotion();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const setPressed = (pressed: boolean) => {
+    if (!enabled || reduce) return;
+    scale.value = withTiming(pressed ? 0.97 : 1, { duration: pressed ? 90 : 140 });
+  };
+  return { animatedStyle, setPressed, active: enabled && !reduce };
+}
+
 export function Btn({
   label,
   onPress,
@@ -71,6 +88,7 @@ export function Btn({
   disabled,
   style,
   right,
+  pressScale = false,
 }: {
   label: string;
   onPress?: () => void;
@@ -80,6 +98,8 @@ export function Btn({
   disabled?: boolean;
   style?: ViewStyle;
   right?: React.ReactNode;
+  /** Gentle scale on press (opt-in; landing CTAs). Staff/owner keep default opacity. */
+  pressScale?: boolean;
 }) {
   const gold = accent || colors.gold;
   const map = {
@@ -89,18 +109,27 @@ export function Btn({
     outline: { bg: colors.white, fg: colors.ink, bd: colors.ink },
     ghost: { bg: "transparent", fg: colors.muted, bd: "transparent" },
   }[variant];
+  const { animatedStyle, setPressed, active } = usePressScale(!!pressScale);
   const body = (
-    <View
+    <Animated.View
       style={[
         styles.btn,
         { backgroundColor: map.bg, borderColor: map.bd, opacity: disabled ? 0.45 : 1 },
         style,
+        active ? animatedStyle : null,
       ]}
     >
       <Text style={[styles.btnText, { color: map.fg }]}>{label}</Text>
       {right}
-    </View>
+    </Animated.View>
   );
+  const pressStyle = ({ pressed }: { pressed: boolean }) => {
+    if (active) return undefined;
+    return pressed ? { opacity: 0.8 } : undefined;
+  };
+  const pressHandlers = active
+    ? { onPressIn: () => setPressed(true), onPressOut: () => setPressed(false) }
+    : {};
   if (href && !disabled) {
     if (/^https?:\/\//i.test(href)) {
       return (
@@ -108,7 +137,8 @@ export function Btn({
           onPress={() => openExternal(href)}
           accessibilityRole="link"
           accessibilityLabel={label}
-          style={({ pressed }) => pressed && { opacity: 0.8 }}
+          style={pressStyle}
+          {...pressHandlers}
         >
           {body}
         </Pressable>
@@ -116,7 +146,12 @@ export function Btn({
     }
     return (
       <Link href={href as any} asChild>
-        <Pressable accessibilityRole="link" accessibilityLabel={label} style={({ pressed }) => pressed && { opacity: 0.8 }}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={label}
+          style={pressStyle}
+          {...pressHandlers}
+        >
           {body}
         </Pressable>
       </Link>
@@ -128,7 +163,8 @@ export function Btn({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => pressed && { opacity: 0.8 }}
+      style={pressStyle}
+      {...pressHandlers}
     >
       {body}
     </Pressable>
