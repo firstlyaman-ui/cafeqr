@@ -287,7 +287,7 @@ function nid(prefix) {
 function parseCorsOrigins() {
   const raw =
     process.env.CORS_ORIGINS ||
-    "https://cafeqred.vercel.app,https://cafeqred-owner.vercel.app,https://cafeqred-staff.vercel.app,https://cafeqr-five.vercel.app,https://cafeqr-staff.vercel.app,https://cafeqr-owner.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
+    "https://cafeqred.vercel.app,https://cafeqred-owner.vercel.app,https://cafeqred-staff.vercel.app,https://cafeqred-api.vercel.app,https://cafeqr-five.vercel.app,https://cafeqr-staff.vercel.app,https://cafeqr-owner.vercel.app,https://cafeqr-api.vercel.app,http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081";
   return raw
     .split(",")
     .map((s) => s.trim())
@@ -332,7 +332,7 @@ async function createApp() {
       origin(origin, cb) {
         if (!origin) return cb(null, true);
         if (origins.includes("*") || origins.includes(origin)) return cb(null, true);
-        if (/^https:\/\/cafeqr[a-z0-9-]*\.vercel\.app$/.test(origin)) return cb(null, true);
+        if (/^https:\/\/cafeqred?[a-z0-9-]*\.vercel\.app$/.test(origin) || /^https:\/\/cafeqr[a-z0-9-]*\.vercel\.app$/.test(origin)) return cb(null, true);
         return cb(null, false);
       },
       credentials: false,
@@ -351,19 +351,19 @@ async function createApp() {
         driver: store.driver,
         version: String(VERSION).slice(0, 40),
         time: Date.now(),
-        service: "cafeqr-api",
+        service: "cafeqred-api",
       });
     })
   );
 
   app.get("/version", (_req, res) => {
-    res.json({ version: String(VERSION).slice(0, 40), service: "cafeqr-api", driver: store.driver });
+    res.json({ version: String(VERSION).slice(0, 40), service: "cafeqred-api", driver: store.driver });
   });
 
   app.get("/", (_req, res) => {
     res.json({
       ok: true,
-      service: "cafeqr-api",
+      service: "cafeqred-api",
       health: "/health",
       docs: "GET /health · GET /version · GET /cafes · GET /cafes/:slug",
     });

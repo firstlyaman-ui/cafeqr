@@ -4,9 +4,9 @@
  * via owner PIN PATCH (no DATABASE_URL required).
  *
  * Usage:
- *   API_BASE=https://cafeqr-api.vercel.app OWNER_PIN=1234 node api/scripts/pitch-live-upsert.js
+ *   API_BASE=https://cafeqred-api.vercel.app OWNER_PIN=1234 node api/scripts/pitch-live-upsert.js
  */
-const API = (process.env.API_BASE || "https://cafeqr-api.vercel.app").replace(/\/$/, "");
+const API = (process.env.API_BASE || "https://cafeqred-api.vercel.app").replace(/\/$/, "");
 const PIN = process.env.OWNER_PIN || "1234";
 
 const IMG = {

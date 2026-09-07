@@ -1,9 +1,10 @@
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { LoginGate } from "@/components/LoginGate";
 import { QrImage, printQrSheet } from "@/components/QrImage";
+import { ActionStrip, SwipePager } from "@/components/SwipePager";
 import { Banner, Btn, Chip, Field, Loading, Screen, Toggle } from "@/components/ui";
 import { tableUrlFor } from "@/lib/api";
 import { isHttpUrl, money, parseIntInput, parseMoneyInput } from "@/lib/format";
@@ -70,8 +71,6 @@ export default function Owner() {
   } = store;
 
   const [picked, setPicked] = useState(String(params.slug || cafeSlug || "velvet-bean"));
-  const [cafeCardPage, setCafeCardPage] = useState(0);
-  const [cafeCardW, setCafeCardW] = useState(0);
   const [name, setName] = useState(cafe.name);
   const [tagline, setTagline] = useState(cafe.tagline);
   const [hours, setHours] = useState(cafe.hours);
@@ -84,8 +83,8 @@ export default function Owner() {
   const [lastCallOn, setLastCallOn] = useState(!!cafe.lastCallEnabled);
   const [lastCallMsg, setLastCallMsg] = useState(cafe.lastCallMessage || "");
   const [lastCallMins, setLastCallMins] = useState("30");
-  const [country, setCountry] = useState((cafe.country || "US").toUpperCase());
-  const [currency, setCurrency] = useState(cafe.currency || "USD");
+  const [country, setCountry] = useState<string>((cafe.country || "US").toUpperCase());
+  const [currency, setCurrency] = useState<string>(cafe.currency || "USD");
   const [taxName, setTaxName] = useState(cafe.taxName || "Tax");
   const [taxPct, setTaxPct] = useState(
     String(Math.round((Number(cafe.taxRate) || 0.08) * 10000) / 100),
@@ -344,15 +343,15 @@ export default function Owner() {
     <Screen maxWidth={980}>
       <View {...({ className: "no-print", dataSet: { noprint: "true" } } as any)}>
         <View style={styles.top}>
-          <View>
+          <View style={{ flexShrink: 1, minWidth: 140 }}>
             <Text style={styles.k}>Owner · {apiOnline ? "Live API" : "Offline"}</Text>
             <Text style={styles.h}>Café setup</Text>
           </View>
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <ActionStrip>
             <Btn label="Open guest menu" onPress={() => openExternal(customerTableUrl(slug, "04"))} variant="outline" />
             <Btn label="Staff app" onPress={() => openExternal(staffBoardUrl(slug))} variant="gold" />
             <Btn label="Sign out" onPress={() => setOwnerOk(false)} variant="outline" />
-          </View>
+          </ActionStrip>
         </View>
 
         {flash ? (
@@ -365,185 +364,199 @@ export default function Owner() {
 
         <View style={styles.card}>
           <Text style={styles.section}>Your café</Text>
-          <View
-            onLayout={(e) => {
-              const w = Math.round(e.nativeEvent.layout.width);
-              if (w > 0 && w !== cafeCardW) setCafeCardW(w);
-            }}
-            style={styles.carouselWrap}
-          >
-            {cafeCardW > 0 ? (
-              <ScrollView
-                horizontal
-                pagingEnabled
-                nestedScrollEnabled
-                decelerationRate="fast"
-                snapToInterval={cafeCardW}
-                snapToAlignment="start"
-                disableIntervalMomentum
-                showsHorizontalScrollIndicator={false}
-                style={{ width: cafeCardW }}
-                onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                  const x = e.nativeEvent.contentOffset.x;
-                  const page = Math.max(0, Math.min(2, Math.round(x / Math.max(1, cafeCardW))));
-                  setCafeCardPage(page);
-                }}
-                onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                  if (Platform.OS !== "web") return;
-                  const x = e.nativeEvent.contentOffset.x;
-                  const page = Math.max(0, Math.min(2, Math.round(x / Math.max(1, cafeCardW))));
-                  if (page !== cafeCardPage) setCafeCardPage(page);
-                }}
-                scrollEventThrottle={16}
-              >
-                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
-                  <Text style={styles.carouselKicker}>Identity</Text>
-                  <Text style={styles.carouselTitle}>{cafe.name}</Text>
-                  <Text style={styles.carouselMeta}>{slug}</Text>
-                </View>
-                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
-                  <Text style={styles.carouselKicker}>Guest path</Text>
-                  <Text style={styles.carouselTitle}>/c/{slug}/t/…</Text>
-                  <Text style={styles.carouselMeta}>Short path guests open from table QR</Text>
-                  <View style={{ marginTop: 8, alignSelf: "flex-start" }}>
-                    <Btn
-                      label="Open guest menu"
-                      onPress={() => openExternal(customerTableUrl(slug, "04"))}
-                      variant="outline"
-                    />
-                  </View>
-                </View>
-                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
-                  <Text style={styles.carouselKicker}>Live snapshot</Text>
-                  <Text style={styles.carouselMeta}>Read-only status for this café</Text>
-                  <View style={styles.carouselChips}>
-                    <Chip
-                      label={cafe.orderingEnabled !== false ? "Ordering · on" : "Ordering · off"}
-                      active={cafe.orderingEnabled !== false}
-                    />
-                    <Chip
-                      label={cafe.lastCallEnabled ? "Last call · on" : "Last call · off"}
-                      active={!!cafe.lastCallEnabled}
-                    />
-                    <Chip
-                      label={cafe.guestStatusEnabled ? "Guest status · on" : "Guest status · off"}
-                      active={!!cafe.guestStatusEnabled}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
-            ) : (
-              <View style={{ minHeight: 88 }}>
-                <Text style={styles.carouselTitle}>{cafe.name}</Text>
-                <Text style={styles.carouselMeta}>{slug}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.dotsRow} accessibilityRole="tablist">
-            {[0, 1, 2].map((i) => (
-              <View
-                key={i}
-                accessibilityLabel={`Your café slide ${i + 1} of 3`}
-                style={[styles.dot, cafeCardPage === i && styles.dotActive]}
-              />
-            ))}
-          </View>
+          <Text style={styles.swipeHint}>Swipe · Identity · Guest path · Live</Text>
+          <SwipePager
+            accessibilityPrefix="Your café"
+            minHeight={120}
+            slides={[
+              {
+                key: "identity",
+                label: "Identity",
+                content: (
+                  <>
+                    <Text style={styles.carouselKicker}>Identity</Text>
+                    <Text style={styles.carouselTitle}>{cafe.name}</Text>
+                    <Text style={styles.carouselMeta}>{slug}</Text>
+                  </>
+                ),
+              },
+              {
+                key: "guest",
+                label: "Guest path",
+                content: (
+                  <>
+                    <Text style={styles.carouselKicker}>Guest path</Text>
+                    <Text style={styles.carouselTitle}>/c/{slug}/t/…</Text>
+                    <Text style={styles.carouselMeta}>Short path guests open from table QR</Text>
+                    <View style={{ marginTop: 8, alignSelf: "flex-start" }}>
+                      <Btn
+                        label="Open guest menu"
+                        onPress={() => openExternal(customerTableUrl(slug, "04"))}
+                        variant="outline"
+                      />
+                    </View>
+                  </>
+                ),
+              },
+              {
+                key: "live",
+                label: "Live",
+                content: (
+                  <>
+                    <Text style={styles.carouselKicker}>Live snapshot</Text>
+                    <Text style={styles.carouselMeta}>Read-only status for this café</Text>
+                    <View style={styles.carouselChips}>
+                      <Chip
+                        label={cafe.orderingEnabled !== false ? "Ordering · on" : "Ordering · off"}
+                        active={cafe.orderingEnabled !== false}
+                      />
+                      <Chip
+                        label={cafe.lastCallEnabled ? "Last call · on" : "Last call · off"}
+                        active={!!cafe.lastCallEnabled}
+                      />
+                      <Chip
+                        label={cafe.guestStatusEnabled ? "Guest status · on" : "Guest status · off"}
+                        active={!!cafe.guestStatusEnabled}
+                      />
+                    </View>
+                  </>
+                ),
+              },
+            ]}
+          />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.section}>Café profile</Text>
-          <Field label="Café name" value={name} onChangeText={setName} />
-          <Field label="Tagline" value={tagline} onChangeText={setTagline} />
-          <Field label="Hours" value={hours} onChangeText={setHours} />
-          <Field label="Address" value={address} onChangeText={setAddress} />
-          <Text style={styles.lbl}>Logo color</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {["#C4A35A", "#E8B62C", "#111111", "#8B5E3C", "#3D5A4A", "#B85C38"].map((c) => (
-              <Pressable
-                key={c}
-                onPress={() => setAccent(c)}
-                accessibilityLabel={`Logo color ${c}`}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  backgroundColor: c,
-                  borderWidth: accent === c ? 2 : 1,
-                  borderColor: accent === c ? colors.ink : colors.line,
-                }}
-              />
-            ))}
+          <Text style={styles.swipeHint}>Swipe · Basics · Location · Brand</Text>
+          <SwipePager
+            accessibilityPrefix="Café profile"
+            minHeight={280}
+            slides={[
+              {
+                key: "basics",
+                label: "Basics",
+                content: (
+                  <View style={{ gap: 10 }}>
+                    <Text style={styles.carouselKicker}>Basics</Text>
+                    <Field label="Café name" value={name} onChangeText={setName} />
+                    <Field label="Tagline" value={tagline} onChangeText={setTagline} />
+                    <Field label="Hours" value={hours} onChangeText={setHours} />
+                    <Toggle label={cash ? "Cash only · on" : "Cash only · off"} on={cash} onPress={() => setCash((v) => !v)} />
+                    <Toggle
+                      label={orderingOn ? "QR ordering · open" : "QR ordering · paused"}
+                      on={orderingOn}
+                      onPress={() => setOrderingOn((v) => !v)}
+                    />
+                  </View>
+                ),
+              },
+              {
+                key: "location",
+                label: "Location · tax",
+                content: (
+                  <View style={{ gap: 10 }}>
+                    <Text style={styles.carouselKicker}>Location · tax</Text>
+                    <Field label="Address" value={address} onChangeText={setAddress} />
+                    <Text style={styles.lbl}>Country (tax defaults)</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {(Object.keys(COUNTRY_TAX_DEFAULTS) as CountryCode[]).map((code) => (
+                        <Chip
+                          key={code}
+                          label={`${code} · ${COUNTRY_TAX_DEFAULTS[code].label}`}
+                          active={country === code}
+                          onPress={() => {
+                            const apply = () => {
+                              const d = COUNTRY_TAX_DEFAULTS[code];
+                              setCountry(code);
+                              setCurrency(d.currency);
+                              setTaxName(d.taxName);
+                              setTaxPct(String(Math.round(d.taxRate * 10000) / 100));
+                            };
+                            const msg =
+                              "Apply " +
+                              COUNTRY_TAX_DEFAULTS[code].label +
+                              " defaults (currency " +
+                              COUNTRY_TAX_DEFAULTS[code].currency +
+                              ", " +
+                              COUNTRY_TAX_DEFAULTS[code].taxName +
+                              " " +
+                              Math.round(COUNTRY_TAX_DEFAULTS[code].taxRate * 100) +
+                              "%)? Menu prices stay unchanged.";
+                            if (Platform.OS === "web" && typeof window !== "undefined") {
+                              if (window.confirm(msg)) apply();
+                              else setCountry(code);
+                            } else {
+                              Alert.alert("Country defaults", msg, [
+                                { text: "Country only", onPress: () => setCountry(code) },
+                                { text: "Apply defaults", onPress: apply },
+                              ]);
+                            }
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <Field
+                      label="Country code"
+                      value={country}
+                      onChangeText={(v) => setCountry(v.toUpperCase())}
+                      placeholder="NP / IN / US"
+                    />
+                    <Field
+                      label="Currency"
+                      value={currency}
+                      onChangeText={(v) => setCurrency(v.toUpperCase())}
+                      placeholder="NPR / INR / USD"
+                    />
+                    <Field label="Tax name" value={taxName} onChangeText={setTaxName} placeholder="VAT / GST / Tax" />
+                    <Field
+                      label="Tax rate (%)"
+                      value={taxPct}
+                      onChangeText={setTaxPct}
+                      placeholder="13"
+                      keyboardType="decimal-pad"
+                    />
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Nepal: country NP → NPR + VAT 13%. Prices stay as you set them; only tax/currency labels change.
+                    </Text>
+                  </View>
+                ),
+              },
+              {
+                key: "brand",
+                label: "Brand · accent",
+                content: (
+                  <View style={{ gap: 10 }}>
+                    <Text style={styles.carouselKicker}>Brand · accent</Text>
+                    <Text style={styles.lbl}>Logo color</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {["#C4A35A", "#E8B62C", "#111111", "#8B5E3C", "#3D5A4A", "#B85C38"].map((c) => (
+                        <Pressable
+                          key={c}
+                          onPress={() => setAccent(c)}
+                          accessibilityLabel={`Logo color ${c}`}
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            backgroundColor: c,
+                            borderWidth: accent === c ? 2 : 1,
+                            borderColor: accent === c ? colors.ink : colors.line,
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <Field label="Custom hex" value={accent} onChangeText={setAccent} />
+                    <Field label="Tables (QR 01–N)" value={tables} onChangeText={setTables} keyboardType="number-pad" />
+                    <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
+                  </View>
+                ),
+              },
+            ]}
+          />
+          <View style={{ marginTop: 8 }}>
+            <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
           </View>
-          <Field label="Custom hex" value={accent} onChangeText={setAccent} />
-          <Field label="Tables (QR 01–N)" value={tables} onChangeText={setTables} keyboardType="number-pad" />
-          <Toggle label={cash ? "Cash only · on" : "Cash only · off"} on={cash} onPress={() => setCash((v) => !v)} />
-          <Toggle
-            label={orderingOn ? "QR ordering · open" : "QR ordering · paused"}
-            on={orderingOn}
-            onPress={() => setOrderingOn((v) => !v)}
-          />
-          <Text style={styles.lbl}>Country (tax defaults)</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {(Object.keys(COUNTRY_TAX_DEFAULTS) as CountryCode[]).map((code) => (
-              <Chip
-                key={code}
-                label={`${code} · ${COUNTRY_TAX_DEFAULTS[code].label}`}
-                active={country === code}
-                onPress={() => {
-                  const apply = () => {
-                    const d = COUNTRY_TAX_DEFAULTS[code];
-                    setCountry(code);
-                    setCurrency(d.currency);
-                    setTaxName(d.taxName);
-                    setTaxPct(String(Math.round(d.taxRate * 10000) / 100));
-                  };
-                  const msg =
-                    "Apply " +
-                    COUNTRY_TAX_DEFAULTS[code].label +
-                    " defaults (currency " +
-                    COUNTRY_TAX_DEFAULTS[code].currency +
-                    ", " +
-                    COUNTRY_TAX_DEFAULTS[code].taxName +
-                    " " +
-                    Math.round(COUNTRY_TAX_DEFAULTS[code].taxRate * 100) +
-                    "%)? Menu prices stay unchanged.";
-                  if (Platform.OS === "web" && typeof window !== "undefined") {
-                    if (window.confirm(msg)) apply();
-                    else setCountry(code);
-                  } else {
-                    Alert.alert("Country defaults", msg, [
-                      { text: "Country only", onPress: () => setCountry(code) },
-                      { text: "Apply defaults", onPress: apply },
-                    ]);
-                  }
-                }}
-              />
-            ))}
-          </View>
-          <Field
-            label="Country code"
-            value={country}
-            onChangeText={(v) => setCountry(v.toUpperCase())}
-            placeholder="NP / IN / US"
-          />
-          <Field
-            label="Currency"
-            value={currency}
-            onChangeText={(v) => setCurrency(v.toUpperCase())}
-            placeholder="NPR / INR / USD"
-          />
-          <Field label="Tax name" value={taxName} onChangeText={setTaxName} placeholder="VAT / GST / Tax" />
-          <Field
-            label="Tax rate (%)"
-            value={taxPct}
-            onChangeText={setTaxPct}
-            placeholder="13"
-            keyboardType="decimal-pad"
-          />
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nepal: country NP → NPR + VAT 13%. Prices stay as you set them; only tax/currency labels change.
-          </Text>
-          <Btn label={busy ? "Saving…" : "Save profile"} onPress={() => void saveProfile()} disabled={busy} />
         </View>
 
         <View style={styles.card}>
@@ -1073,7 +1086,7 @@ export default function Owner() {
 
 const styles = StyleSheet.create({
   h2: { fontSize: 16, fontWeight: "800", color: colors.ink, marginBottom: 6 },
-  top: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 20, flexWrap: "nowrap" },
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
   h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.2, color: colors.ink, marginTop: 6 },
   card: {
@@ -1162,4 +1175,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   availTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, color: colors.ink, textTransform: "uppercase" },
+  swipeHint: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, color: colors.muted, marginTop: -4, marginBottom: 4 },
+  carouselKicker: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4, color: colors.gold, textTransform: "uppercase", marginBottom: 6 },
+  carouselTitle: { fontSize: 20, fontWeight: "800", color: colors.ink, letterSpacing: 0.2 },
+  carouselMeta: { fontSize: 12, color: colors.muted, marginTop: 4, fontWeight: "600" },
+  carouselChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
 });

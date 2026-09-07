@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { confirmOnce } from "@/lib/confirm";
 import { LoginGate } from "@/components/LoginGate";
+import { ActionStrip, SwipePager } from "@/components/SwipePager";
 import { openExternal, ownerSetupUrl } from "@/lib/appRole";
 import { Btn, Chip, Loading, Screen } from "@/components/ui";
 import { money, nextStatus, nextStatusLabel, statusLabel, tableLabel, timeAgo } from "@/lib/format";
@@ -159,21 +160,81 @@ export default function Staff() {
     );
   }
 
+  const openNew = orders.filter((o) => o.status === "new");
+  const pinHint = openNew[0];
+
   return (
     <Screen maxWidth={1080}>
       <View style={styles.top}>
-        <View>
+        <View style={{ flexShrink: 1, minWidth: 140 }}>
           <Text style={styles.k}>
             {cafe.name} · {apiOnline ? "LIVE" : "LOCAL"}
           </Text>
           <Text style={styles.h}>STAFF BOARD</Text>
-          <Text style={styles.sub}>Cash due {money(due, cur)}</Text>
         </View>
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        <ActionStrip>
           <Btn label="QR sheet" href="/staff/qr" variant="gold" />
           <Btn label="Owner" onPress={() => openExternal(ownerSetupUrl(slug))} variant="outline" />
           <Btn label="Sign out" onPress={() => setStaffOk(false)} variant="outline" />
-        </View>
+        </ActionStrip>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.section}>This café</Text>
+        <Text style={styles.swipeHint}>Swipe · Café · Cash due · PIN hint</Text>
+        <SwipePager
+          accessibilityPrefix="Staff café"
+          minHeight={110}
+          slides={[
+            {
+              key: "cafe",
+              label: "Café",
+              content: (
+                <>
+                  <Text style={styles.carouselKicker}>Café</Text>
+                  <Text style={styles.carouselTitle}>{cafe.name}</Text>
+                  <Text style={styles.carouselMeta}>{slug} · {apiOnline ? "Live API" : "Offline"}</Text>
+                </>
+              ),
+            },
+            {
+              key: "cash",
+              label: "Cash due",
+              content: (
+                <>
+                  <Text style={styles.carouselKicker}>Cash due</Text>
+                  <Text style={styles.carouselTitle}>{money(due, cur)}</Text>
+                  <Text style={styles.carouselMeta}>
+                    {openNew.length} new ticket{openNew.length === 1 ? "" : "s"} awaiting cash
+                  </Text>
+                </>
+              ),
+            },
+            {
+              key: "pin",
+              label: "PIN hint",
+              content: (
+                <>
+                  <Text style={styles.carouselKicker}>PIN find hint</Text>
+                  {pinHint ? (
+                    <>
+                      <Text style={styles.carouselTitle}>{pinHint.id}</Text>
+                      <Text style={styles.carouselMeta}>
+                        Ask guest for order # + PIN · table {String(pinHint.table).padStart(2, "0")}
+                        {pinHint.confirmCode ? ` · PIN ${pinHint.confirmCode}` : ""}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.carouselTitle}>No open PINs</Text>
+                      <Text style={styles.carouselMeta}>New tickets show order # and PIN here</Text>
+                    </>
+                  )}
+                </>
+              ),
+            },
+          ]}
+        />
       </View>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 16 }}>
@@ -215,7 +276,7 @@ export default function Staff() {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "nowrap" },
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 2, color: colors.gold, textTransform: "uppercase" },
   h: { fontSize: 28, fontWeight: "800", letterSpacing: 0.6, color: colors.ink, marginTop: 6 },
   sub: { color: colors.muted, marginTop: 6, fontWeight: "600" },
@@ -263,4 +324,19 @@ const styles = StyleSheet.create({
   dueLbl: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4, color: colors.muted },
   dueAmt: { fontWeight: "800", fontSize: 16, color: colors.ink },
   empty: { color: colors.muted, fontSize: 13, marginTop: 8 },
+  card: {
+    backgroundColor: colors.white,
+    borderWidth,
+    borderColor: colors.line,
+    borderRadius: radius,
+    padding: 16,
+    gap: 8,
+    marginBottom: 16,
+    ...shadow.card,
+  },
+  section: { fontSize: 13, fontWeight: "800", letterSpacing: 1.2, color: colors.ink, textTransform: "uppercase" },
+  swipeHint: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, color: colors.muted },
+  carouselKicker: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4, color: colors.gold, textTransform: "uppercase", marginBottom: 6 },
+  carouselTitle: { fontSize: 20, fontWeight: "800", color: colors.ink, letterSpacing: 0.2 },
+  carouselMeta: { fontSize: 12, color: colors.muted, marginTop: 4, fontWeight: "600" },
 });

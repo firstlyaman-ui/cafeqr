@@ -19,7 +19,7 @@ One shared `app/` codebase, three production sites. Build-time `EXPO_PUBLIC_APP_
 | *(legacy alias)* | customer | https://cafeqr-five.vercel.app | Same deploy — kept so old QR/links keep working |
 | **cafeqred-staff** | staff | https://cafeqred-staff.vercel.app (alias https://cafeqr-staff.vercel.app) | `/staff` board + `/staff/qr` |
 | **cafeqred-owner** | owner | https://cafeqred-owner.vercel.app (alias https://cafeqr-owner.vercel.app) | `/owner` setup + menu CRUD + QR print |
-| **cafeqr-api** | API | https://cafeqr-api.vercel.app | Shared backend |
+| **cafeqred-api** | API | https://cafeqred-api.vercel.app (alias https://cafeqr-api.vercel.app) | Shared backend |
 
 Cross-links (e.g. “Open guest menu”, “Staff app”) are **external** `https://` URLs only — never in-app routes into another role’s UI. Separate origins ⇒ separate PIN sessions (`staffOk` / `ownerOk`).
 
@@ -60,7 +60,7 @@ Optional: point at a non-default API URL:
 EXPO_PUBLIC_API_URL=http://localhost:8787 npx expo start --web
 ```
 
-Dev default API base is `http://localhost:8787`; production builds default to `https://cafeqr-api.vercel.app` unless `EXPO_PUBLIC_API_URL` is set.
+Dev default API base is `http://localhost:8787`; production builds default to `https://cafeqred-api.vercel.app` unless `EXPO_PUBLIC_API_URL` is set.
 
 ## Multi-cafe guest URLs
 
@@ -110,7 +110,7 @@ Four Vercel projects, all deployed from the **monorepo root** (team `aman-42f1`,
 
 | Project | Root Directory | Key env |
 |---------|----------------|---------|
-| `cafeqr-api` | `api` | `DATABASE_URL`, `CORS_ORIGINS` |
+| `cafeqred-api` | `api` | `DATABASE_URL`, `CORS_ORIGINS` |
 | `cafeqred` (customer) | `app` | `EXPO_PUBLIC_APP_ROLE=customer`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_CUSTOMER_URL`, `EXPO_PUBLIC_STAFF_URL`, `EXPO_PUBLIC_OWNER_URL` |
 | `cafeqred-staff` | `app` | `EXPO_PUBLIC_APP_ROLE=staff` + same URL envs |
 | `cafeqred-owner` | `app` | `EXPO_PUBLIC_APP_ROLE=owner` + same URL envs |
@@ -146,13 +146,13 @@ Demo paths (customer): `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`, `/c/himalaya
 
 | Project | Variable | Purpose |
 |---------|----------|---------|
-| web apps | `EXPO_PUBLIC_API_URL` | `https://cafeqr-api.vercel.app` |
+| web apps | `EXPO_PUBLIC_API_URL` | `https://cafeqred-api.vercel.app` |
 | web apps | `EXPO_PUBLIC_APP_ROLE` | `customer` \| `staff` \| `owner` |
 | web apps | `EXPO_PUBLIC_CUSTOMER_URL` | `https://cafeqred.vercel.app` (legacy `https://cafeqr-five.vercel.app` still aliased) |
-| web apps | `EXPO_PUBLIC_STAFF_URL` | `https://cafeqr-staff.vercel.app` (cafeqred-staff project) |
-| web apps | `EXPO_PUBLIC_OWNER_URL` | `https://cafeqr-owner.vercel.app` (cafeqred-owner project) |
-| `cafeqr-api` | `DATABASE_URL` | Durable Postgres (recommended) |
-| `cafeqr-api` | `CORS_ORIGINS` | Allowlist (cafeqred / cafeqred-owner / cafeqred-staff / cafeqr-five + localhost); wildcard also allows `cafeqr*.vercel.app` |
+| web apps | `EXPO_PUBLIC_STAFF_URL` | `https://cafeqred-staff.vercel.app` (legacy cafeqr-staff alias) |
+| web apps | `EXPO_PUBLIC_OWNER_URL` | `https://cafeqred-owner.vercel.app` (legacy cafeqr-owner alias) |
+| `cafeqred-api` | `DATABASE_URL` | Durable Postgres (recommended) |
+| `cafeqred-api` | `CORS_ORIGINS` | Allowlist (cafeqred / cafeqred-owner / cafeqred-staff / cafeqr-five + localhost); wildcard also allows `cafeqr*.vercel.app` |
 
 
 ### Google products (optional)
@@ -166,7 +166,7 @@ Also built-in (no key): Google Fonts (DM Sans + Fraunces on web), Google Maps li
 
 Later / not in this pitch: AdMob, Gmail API, YouTube, Cloud Vision, Play Console listing, Google Pay / UPI.
 
-Health: `GET https://cafeqr-api.vercel.app/health` → `{ ok, db, driver, version }`
+Health: `GET https://cafeqred-api.vercel.app/health` (fallback `https://cafeqr-api.vercel.app/health`) → `{ ok, db, driver, version }`
 
 ## Product notes
 

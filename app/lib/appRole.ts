@@ -9,9 +9,9 @@ export type AppRole = "customer" | "staff" | "owner";
  */
 function normalizeRole(raw: string | undefined): AppRole {
   const r = (raw || "customer").toLowerCase().replace(/_/g, "-");
-  if (r === "staff" || r === "cafeqr-staff") return "staff";
-  if (r === "owner" || r === "cafeqr-owner") return "owner";
-  if (r === "customer" || r === "cafeqr" || r === "guest") return "customer";
+  if (r === "staff" || r === "cafeqr-staff" || r === "cafeqred-staff") return "staff";
+  if (r === "owner" || r === "cafeqr-owner" || r === "cafeqred-owner") return "owner";
+  if (r === "customer" || r === "cafeqr" || r === "cafeqred" || r === "guest") return "customer";
   return "customer";
 }
 
@@ -26,12 +26,12 @@ export const CUSTOMER_URL = (
 
 export const STAFF_URL = (
   (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_STAFF_URL : undefined) ||
-  "https://cafeqr-staff.vercel.app"
+  "https://cafeqred-staff.vercel.app"
 ).replace(/\/$/, "");
 
 export const OWNER_URL = (
   (typeof process !== "undefined" ? process.env.EXPO_PUBLIC_OWNER_URL : undefined) ||
-  "https://cafeqr-owner.vercel.app"
+  "https://cafeqred-owner.vercel.app"
 ).replace(/\/$/, "");
 
 export function isCustomerApp() {

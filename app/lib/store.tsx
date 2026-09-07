@@ -290,7 +290,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           );
           return;
         } catch (e) {
-          console.warn("[cafeqr] loadCafe API failed", e);
+          console.warn("[cafeqred] loadCafe API failed", e);
         }
       }
       // offline / missing: velvet-bean local seed only
@@ -385,7 +385,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const rows = await api.listOrders(s.cafeSlug, staffPinRef.current);
       setState((prev) => ({ ...prev, orders: rows.map(mapApiOrder) }));
     } catch (e) {
-      console.warn("[cafeqr] refreshOrders failed", e);
+      console.warn("[cafeqred] refreshOrders failed", e);
     }
   }, []);
 
@@ -479,7 +479,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           await refreshCafeList();
           return { ok: true };
         } catch (e) {
-          console.warn("[cafeqr] saveCafe API failed", e);
+          console.warn("[cafeqred] saveCafe API failed", e);
           try {
             await loadCafe(s.cafeSlug);
             await refreshCafeList();
@@ -869,7 +869,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           });
           return order;
         } catch (e) {
-          console.warn("[cafeqr] placeOrder API failed", e);
+          console.warn("[cafeqred] placeOrder API failed", e);
           throw e;
         }
       }

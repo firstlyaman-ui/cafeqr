@@ -1,6 +1,6 @@
 import { CUSTOMER_URL } from "./appRole";
 const DEV_DEFAULT = "http://localhost:8787";
-const PROD_DEFAULT = "https://cafeqr-api.vercel.app";
+const PROD_DEFAULT = "https://cafeqred-api.vercel.app";
 
 function resolveApiBase(): string {
   const fromEnv =

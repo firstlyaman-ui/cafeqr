@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "CafeQred",
-    "slug": "cafeqr",
+    "slug": "cafeqred",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cafeqr",
+    "scheme": "cafeqred",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
