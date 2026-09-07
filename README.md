@@ -17,8 +17,8 @@ One shared `app/` codebase, three production sites. Build-time `EXPO_PUBLIC_APP_
 |-----|------|----------------|--------|
 | **cafeqred** | customer | https://cafeqred.vercel.app | Landing, `/c/[slug]/t/[table]`, cart, checkout, order status, invoice |
 | *(legacy alias)* | customer | https://cafeqr-five.vercel.app | Same deploy — kept so old QR/links keep working |
-| **cafeqr-staff** | staff | https://cafeqr-staff.vercel.app | `/staff` board + `/staff/qr` |
-| **cafeqr-owner** | owner | https://cafeqr-owner.vercel.app | `/owner` setup + menu CRUD + QR print |
+| **cafeqred-staff** | staff | https://cafeqred-staff.vercel.app (alias https://cafeqr-staff.vercel.app) | `/staff` board + `/staff/qr` |
+| **cafeqred-owner** | owner | https://cafeqred-owner.vercel.app (alias https://cafeqr-owner.vercel.app) | `/owner` setup + menu CRUD + QR print |
 | **cafeqr-api** | API | https://cafeqr-api.vercel.app | Shared backend |
 
 Cross-links (e.g. “Open guest menu”, “Staff app”) are **external** `https://` URLs only — never in-app routes into another role’s UI. Separate origins ⇒ separate PIN sessions (`staffOk` / `ownerOk`).
@@ -112,14 +112,14 @@ Four Vercel projects, all deployed from the **monorepo root** (team `aman-42f1`,
 |---------|----------------|---------|
 | `cafeqr-api` | `api` | `DATABASE_URL`, `CORS_ORIGINS` |
 | `cafeqred` (customer) | `app` | `EXPO_PUBLIC_APP_ROLE=customer`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_CUSTOMER_URL`, `EXPO_PUBLIC_STAFF_URL`, `EXPO_PUBLIC_OWNER_URL` |
-| `cafeqr-staff` | `app` | `EXPO_PUBLIC_APP_ROLE=staff` + same URL envs |
-| `cafeqr-owner` | `app` | `EXPO_PUBLIC_APP_ROLE=owner` + same URL envs |
+| `cafeqred-staff` | `app` | `EXPO_PUBLIC_APP_ROLE=staff` + same URL envs |
+| `cafeqred-owner` | `app` | `EXPO_PUBLIC_APP_ROLE=owner` + same URL envs |
 
 Web build command (all three): `npx expo export --platform web` (Metro reads `EXPO_PUBLIC_APP_ROLE` and blockLists other-role routes).
 
 ```bash
 # Customer (root .vercel → cafeqred)
-cd /path/to/CafeQR
+cd /path/to/CafeQred
 npx vercel --prod --yes --scope aman-42f1
 
 # API (swap .vercel → cafeqr-api)
@@ -128,7 +128,7 @@ npx vercel --prod --yes --scope aman-42f1
 rm -rf .vercel && mv .vercel-web .vercel
 
 # Staff / Owner: link or create projects with Root Directory = app, then:
-#   npx vercel link --yes --scope aman-42f1 --project cafeqr-staff
+#   npx vercel link --yes --scope aman-42f1 --project cafeqred-staff
 #   set EXPO_PUBLIC_APP_ROLE=staff (and URL envs) then vercel --prod
 ```
 
@@ -149,10 +149,10 @@ Demo paths (customer): `/c/velvet-bean/t/04`, `/c/spice-lane/t/03`, `/c/himalaya
 | web apps | `EXPO_PUBLIC_API_URL` | `https://cafeqr-api.vercel.app` |
 | web apps | `EXPO_PUBLIC_APP_ROLE` | `customer` \| `staff` \| `owner` |
 | web apps | `EXPO_PUBLIC_CUSTOMER_URL` | `https://cafeqred.vercel.app` (legacy `https://cafeqr-five.vercel.app` still aliased) |
-| web apps | `EXPO_PUBLIC_STAFF_URL` | `https://cafeqr-staff.vercel.app` |
-| web apps | `EXPO_PUBLIC_OWNER_URL` | `https://cafeqr-owner.vercel.app` |
+| web apps | `EXPO_PUBLIC_STAFF_URL` | `https://cafeqr-staff.vercel.app` (cafeqred-staff project) |
+| web apps | `EXPO_PUBLIC_OWNER_URL` | `https://cafeqr-owner.vercel.app` (cafeqred-owner project) |
 | `cafeqr-api` | `DATABASE_URL` | Durable Postgres (recommended) |
-| `cafeqr-api` | `CORS_ORIGINS` | Allowlist (cafeqred / cafeqr-five / staff / owner + localhost); wildcard pattern also allows `cafeqr*.vercel.app` |
+| `cafeqr-api` | `CORS_ORIGINS` | Allowlist (cafeqred / cafeqred-owner / cafeqred-staff / cafeqr-five + localhost); wildcard also allows `cafeqr*.vercel.app` |
 
 
 ### Google products (optional)

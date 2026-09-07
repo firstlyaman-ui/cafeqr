@@ -340,7 +340,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const s = (slug || stateRef.current.cafeSlug || "").trim();
     if (!s) return list;
     const hit = list.filter((c) => c.slug === s);
-    return hit.length ? hit : list.slice(0, 0);
+    if (hit.length) return hit;
+    // Never empty the list after login (missed slug / race) — keep a session stub so ownerOk stays usable.
+    const cafe = stateRef.current.cafe;
+    return [
+      {
+        slug: s,
+        name: cafe?.name || s,
+        tagline: cafe?.tagline || "",
+        currency: cafe?.currency,
+        country: cafe?.country,
+        taxName: cafe?.taxName,
+        taxRate: cafe?.taxRate,
+        accentColor: cafe?.accentColor,
+      },
+    ];
   }, []);
 
   const refreshCafeList = useCallback(async () => {

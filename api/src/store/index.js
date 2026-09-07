@@ -1,5 +1,5 @@
 /**
- * CafeQR DB adapter layer.
+ * CafeQred DB adapter layer.
  *
  * Fail-closed in production / Vercel:
  * - DATABASE_URL set + Postgres fails → throw (no SQLite fallback)
