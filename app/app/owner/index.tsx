@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { LoginGate } from "@/components/LoginGate";
 import { QrImage, printQrSheet } from "@/components/QrImage";
@@ -70,6 +70,8 @@ export default function Owner() {
   } = store;
 
   const [picked, setPicked] = useState(String(params.slug || cafeSlug || "velvet-bean"));
+  const [cafeCardPage, setCafeCardPage] = useState(0);
+  const [cafeCardW, setCafeCardW] = useState(0);
   const [name, setName] = useState(cafe.name);
   const [tagline, setTagline] = useState(cafe.tagline);
   const [hours, setHours] = useState(cafe.hours);
@@ -363,10 +365,89 @@ export default function Owner() {
 
         <View style={styles.card}>
           <Text style={styles.section}>Your café</Text>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.ink }}>{cafe.name}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-            {slug} · Guest path: /c/{slug}/t/…
-          </Text>
+          <View
+            onLayout={(e) => {
+              const w = Math.round(e.nativeEvent.layout.width);
+              if (w > 0 && w !== cafeCardW) setCafeCardW(w);
+            }}
+            style={styles.carouselWrap}
+          >
+            {cafeCardW > 0 ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                nestedScrollEnabled
+                decelerationRate="fast"
+                snapToInterval={cafeCardW}
+                snapToAlignment="start"
+                disableIntervalMomentum
+                showsHorizontalScrollIndicator={false}
+                style={{ width: cafeCardW }}
+                onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  const page = Math.max(0, Math.min(2, Math.round(x / Math.max(1, cafeCardW))));
+                  setCafeCardPage(page);
+                }}
+                onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  if (Platform.OS !== "web") return;
+                  const x = e.nativeEvent.contentOffset.x;
+                  const page = Math.max(0, Math.min(2, Math.round(x / Math.max(1, cafeCardW))));
+                  if (page !== cafeCardPage) setCafeCardPage(page);
+                }}
+                scrollEventThrottle={16}
+              >
+                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
+                  <Text style={styles.carouselKicker}>Identity</Text>
+                  <Text style={styles.carouselTitle}>{cafe.name}</Text>
+                  <Text style={styles.carouselMeta}>{slug}</Text>
+                </View>
+                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
+                  <Text style={styles.carouselKicker}>Guest path</Text>
+                  <Text style={styles.carouselTitle}>/c/{slug}/t/…</Text>
+                  <Text style={styles.carouselMeta}>Short path guests open from table QR</Text>
+                  <View style={{ marginTop: 8, alignSelf: "flex-start" }}>
+                    <Btn
+                      label="Open guest menu"
+                      onPress={() => openExternal(customerTableUrl(slug, "04"))}
+                      variant="outline"
+                    />
+                  </View>
+                </View>
+                <View style={[styles.carouselSlide, { width: cafeCardW }]}>
+                  <Text style={styles.carouselKicker}>Live snapshot</Text>
+                  <Text style={styles.carouselMeta}>Read-only status for this café</Text>
+                  <View style={styles.carouselChips}>
+                    <Chip
+                      label={cafe.orderingEnabled !== false ? "Ordering · on" : "Ordering · off"}
+                      active={cafe.orderingEnabled !== false}
+                    />
+                    <Chip
+                      label={cafe.lastCallEnabled ? "Last call · on" : "Last call · off"}
+                      active={!!cafe.lastCallEnabled}
+                    />
+                    <Chip
+                      label={cafe.guestStatusEnabled ? "Guest status · on" : "Guest status · off"}
+                      active={!!cafe.guestStatusEnabled}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={{ minHeight: 88 }}>
+                <Text style={styles.carouselTitle}>{cafe.name}</Text>
+                <Text style={styles.carouselMeta}>{slug}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.dotsRow} accessibilityRole="tablist">
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                accessibilityLabel={`Your café slide ${i + 1} of 3`}
+                style={[styles.dot, cafeCardPage === i && styles.dotActive]}
+              />
+            ))}
+          </View>
         </View>
 
         <View style={styles.card}>

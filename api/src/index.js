@@ -360,6 +360,15 @@ async function createApp() {
     res.json({ version: String(VERSION).slice(0, 40), service: "cafeqr-api", driver: store.driver });
   });
 
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "cafeqr-api",
+      health: "/health",
+      docs: "GET /health · GET /version · GET /cafes · GET /cafes/:slug",
+    });
+  });
+
   app.get(
     "/cafes",
     wrap(async (_req, res) => {
